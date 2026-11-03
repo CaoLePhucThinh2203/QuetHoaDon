@@ -5,6 +5,7 @@ A research prototype for extracting structured information from Vietnamese recei
 ## Project objective
 
 Given a receipt image, produce structured data containing:
+
 - merchant / seller name;
 - merchant address or location;
 - item names;
@@ -16,7 +17,7 @@ The output must retain source text, bounding boxes, confidence/quality indicator
 ## Proposed pipeline
 
 ```mermaid
-flowchart TD
+flowchart LR
     A["Receipt image"] --> B["Image preprocessing"]
     B --> C["CRAFT: detect text regions"]
     C --> D["Polygon rectification and crop"]
@@ -29,15 +30,19 @@ flowchart TD
 ```
 
 ### Stage 1 — CRAFT text detection
+
 CRAFT detects text regions and returns polygons or bounding boxes in the receipt image's 2D coordinate space. It is used as a pretrained detector; this project does not fine-tune it on receipt annotations. Convert each polygon to a crop region while retaining its original coordinates and detection score.
 
 ### Stage 2 — VietOCR text recognition
+
 Rectify each detected polygon (perspective transform where appropriate), crop it, and pass the crop to a pretrained VietOCR recognizer. Store the recognized string and OCR confidence alongside the corresponding original-image bounding box. Reading order is estimated from geometry; do not discard the coordinates after cropping.
 
 ### Stage 3 — LayoutXLM representations and unsupervised extraction
+
 LayoutXLM is used as a pretrained multimodal document encoder to represent recognized text together with normalized 2D layout. Its hidden representations are features, not entity labels. The project does **not** fine-tune a token-classification head using BIO labels.
 
 Use the representations and spatial relations to group text regions and generate candidates:
+
 - repeated aligned rows and columns are candidate line-item structures;
 - text-like regions are candidate item descriptions;
 - nearby numeric regions are candidate quantities, unit prices, or line amounts;
@@ -76,16 +81,31 @@ Example structure (illustrative schema, not a claim of achieved model accuracy):
 
 ```json
 {
-  "seller": {"text": null, "bbox": null, "confidence": null, "status": "not_found"},
-  "address": {"text": null, "bbox": null, "confidence": null, "status": "not_found"},
+  "seller": {
+    "text": null,
+    "bbox": null,
+    "confidence": null,
+    "status": "not_found"
+  },
+  "address": {
+    "text": null,
+    "bbox": null,
+    "confidence": null,
+    "status": "not_found"
+  },
   "items": [
     {
-      "name": {"text": null, "bbox": null, "confidence": null},
+      "name": { "text": null, "bbox": null, "confidence": null },
       "quantity": null,
-      "price": {"text": null, "bbox": null, "confidence": null}
+      "price": { "text": null, "bbox": null, "confidence": null }
     }
   ],
-  "total": {"text": null, "bbox": null, "confidence": null, "status": "uncertain"}
+  "total": {
+    "text": null,
+    "bbox": null,
+    "confidence": null,
+    "status": "uncertain"
+  }
 }
 ```
 
