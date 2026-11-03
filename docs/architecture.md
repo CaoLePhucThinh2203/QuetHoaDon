@@ -7,7 +7,7 @@ The system receives a photographed or scanned receipt and extracts merchant iden
 ## 2. End-to-end flow
 
 ```mermaid
-flowchart TD
+flowchart LR
     A["Receipt image"] --> B["Preprocessing: resize, color, denoise, deskew if needed"]
     B --> C["CRAFT text detection"]
     C --> D["Text polygons / bounding boxes"]

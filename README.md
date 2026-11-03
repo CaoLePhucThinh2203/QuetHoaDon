@@ -267,10 +267,9 @@ The README describes the intended system design. Update this section as implemen
 
 ## 👥 Team
 
-Add the project members, roles, and responsibilities here when the team assignments are finalized.
-
----
-
-## 📄 License
-
-Add the project's license and dataset-use notices here before public distribution. The dataset and pretrained models may have their own terms of use; check the corresponding sources before redistributing data or model files.
+| #   | Full name           | Student ID |            
+| --- | ------------------- | -----------| 
+| 1   | Dam Huynh Hoai Nam  | 24090022   |
+| 2   | Cao Le Phuc Thinh   | 24090024   |
+| 3   | Dau Tuan Loc        | 24090025   |
+| 4   | Truong Dinh Nhien   | 24090060   |
