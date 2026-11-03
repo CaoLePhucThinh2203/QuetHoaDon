@@ -1,101 +1,35 @@
-# Dataset Documentation: MC-OCR 2021
+# Dataset Documentation
 
-## 1. Overview & Source
+## MC-OCR 2021 — Primary Vietnamese receipt dataset
 
-The dataset used in this project is based on the **MC-OCR 2021 Challenge** (Mobile-Captured Image Document Recognition for Vietnamese Receipts), organized in conjunction with the **IEEE RIVF 2021** International Conference on Communications & Computing.
+The repository configuration identifies MC-OCR 2021 as the primary dataset. Its CSV annotations include image identifiers, text strings, entity labels, polygons, and image-quality metadata.
 
-| Attribute | Verified Value |
-| :--- | :--- |
-| **Dataset Title** | Vietnamese Receipts MC_OCR 2021 |
-| **Kaggle Identifier** | `domixi1989/vietnamese-receipts-mc-ocr-2021` |
-| **Primary Tasks** | Task 1: Image Quality Assessment (IQA); Task 2: Key Information Extraction (KIE) |
-| **Target Language** | Vietnamese (full diacritics, Latin script) |
-| **Image Modality** | Mobile photos under real-world distortions (perspective skew, shadows, crumples, noise) |
+The annotation parser supports audit tasks such as deserialization, structural consistency checks, normalization of a known label spelling anomaly, and reporting empty records. These labels are **not used to train or fine-tune the unsupervised extraction pipeline**.
 
----
+### Permitted use in this project
+- inspect dataset structure and image readability;
+- validate parser behavior and annotation consistency;
+- evaluate the final frozen pipeline against ground truth;
+- report metrics after the algorithm and thresholds have been fixed.
 
-## 2. Kaggle Access & Loading Instructions
+### Prohibited use for an unsupervised claim
+- training a LayoutXLM token-classification head from `anno_labels`;
+- using ground-truth text/boxes to supervise CRAFT or OCR;
+- generating pseudo-labels directly from ground-truth entity labels;
+- tuning thresholds repeatedly against the evaluation labels and then describing the result as fully unsupervised.
 
-### In Kaggle Notebooks (Recommended)
-1. Open or create a Kaggle Notebook.
-2. In the right panel, select **Add Input** -> Search: `vietnamese-receipts-mc-ocr-2021`.
-3. The dataset mounts read-only at:
-   ```text
-   /kaggle/input/vietnamese-receipts-mc-ocr-2021/
-   ```
+The dataset's exact local availability and counts must be rechecked in the execution environment. Do not treat historical report figures as a fresh verification.
 
-### Via Kaggle CLI (Local Sample Inspection Only)
-> [!WARNING]
-> Do not check downloaded dataset files into Git. The `.gitignore` is pre-configured to reject all files inside `data/`.
-```bash
-kaggle datasets download -d domixi1989/vietnamese-receipts-mc-ocr-2021 -p data/raw --unzip
-```
+## Other datasets
 
----
+SROIE 2019 (English) and CORD (Indonesian) are listed as possible future datasets. Their integration status must be updated only after the files have actually been obtained and inspected. VietOCR is Vietnamese-oriented; other languages may require a language-appropriate recognition model.
 
-## 3. Directory Layout & File Verification
+## Dataset/evaluation separation
 
-From physical inspection of the unpacked dataset archive, the file structure is arranged as follows:
+Maintain separate directories and data loaders for:
+- raw receipt images used by inference;
+- annotation files reserved for audit/evaluation;
+- cached CRAFT detections and VietOCR outputs;
+- final structured predictions.
 
-```text
-/kaggle/input/vietnamese-receipts-mc-ocr-2021/
-├── mcocr_train_df.csv                  # Main ground-truth annotations (1,155 records)
-├── mcocr_val_sample_df.csv             # Public validation submission template (391 records)
-├── train_images/
-│   └── train_images/                   # Nested directory containing 1,155 .jpg image files
-│       ├── mcocr_public_145013aagqw.jpg
-│       └── ...
-├── val_images/
-│   └── val_images/                     # Nested directory containing 391 .jpg image files
-│       ├── mcocr_val_145114xmicn.jpg
-│       └── ...
-├── text_recognition_train_data.txt     # Line-level OCR training pairs
-├── text_recognition_val_data.txt       # Line-level OCR validation pairs
-└── results.csv                         # Baseline submission sample
-```
-
-> [!NOTE]
-> The image directories contain a double nesting (`train_images/train_images/` and `val_images/val_images/`). Code must resolve paths dynamically rather than assuming a single-level directory.
-
----
-
-## 4. Annotation Schema (Verified vs Inferred)
-
-### Verified Fields in `mcocr_train_df.csv`
-
-| Column Name | Data Type | Verified Format / Content |
-| :--- | :--- | :--- |
-| `img_id` | `str` | Filename matching image in `train_images/train_images/` (e.g. `mcocr_public_145013ddcph.jpg`) |
-| `anno_polygons` | `str` (evaluable as list of dicts) | List of COCO-like dictionaries per annotated line: `{'category_id': int, 'segmentation': [[x1, y1, ...]], 'area': int, 'bbox': [x, y, w, h], 'width': int, 'height': int}` |
-| `anno_texts` | `str` | Text transcriptions separated by delimiter `\|\|\|` (e.g. `MINIMART ANAN\|\|\|Chợ Sủi Gia Lâm`) |
-| `anno_labels` | `str` | Entity category tags separated by `\|\|\|` (e.g. `SELLER\|\|\|ADDRESS\|\|\|TOTAL_COST`) |
-| `anno_num` | `int` | Count of annotated entity bounding boxes in the image |
-| `anno_image_quality` | `float` | Quality score between `0.0` and `1.0` representing readability |
-
-### Category ID to Label Mapping (Verified)
-- `15` -> `SELLER`
-- `16` -> `ADDRESS`
-- `17` -> `TIMESTAMP`
-- `18` -> `TOTAL_COST`
-
-### Verified Data Anomalies
-1. **Empty Records:** Exactly 2 rows (`img_id: mcocr_public_145014iwhec.jpg` and `mcocr_public_145014jndnz.jpg`) have `anno_num: 0`, `anno_polygons: '[]'`, and empty strings for `anno_texts` and `anno_labels`.
-2. **Label Typos:** In row 8 (`mcocr_public_145013kzjew.jpg`), the label string contains `TOTAL_TOTAL_COST`. The parser must normalize this to `TOTAL_COST`.
-3. **Compound Total Annotations:** Both the key header (e.g., `"Tổng tiền:"`) and the numerical figure (e.g., `"74,000"`) are assigned the label `TOTAL_COST`.
-
----
-
-## 5. Properties Requiring Further Exploration
-
-1. **Non-Key Text Presence:** The verified annotations in `mcocr_train_df.csv` cover primarily key target entities. Non-key background text (itemized products, unit prices, tax codes) does not have explicit ground truth bounding boxes in `mcocr_train_df.csv`. To construct a complete document layout for LayoutXLM, either CRAFT must detect all words first, or LayoutXLM must be trained on key lines + inferred background tokens.
-2. **Merchant Distribution:** How many unique merchant chains (e.g. VinCommerce, Co.opMart, Circle K) exist across the 1,155 images? This dictates how group splitting must be executed to prevent data leakage.
-3. **Image Dimensions & Aspect Ratios:** Distribution of widths, heights, and orientations across the 1,155 images.
-
----
-
-## 6. Licensing & Usage Restrictions
-
-- **Source:** Released under academic research competition terms for IEEE RIVF 2021.
-- **Permitted Use:** Academic study, university research, educational benchmarking, and non-commercial prototyping.
-- **Redistribution Policy:** Raw data cannot be republished commercially or packaged into closed-source proprietary software.
-- **Credentials & API Safety:** No Kaggle credentials, API tokens, or session cookies may be stored or committed to the repository.
+Do not mix evaluation labels into cached inference features.

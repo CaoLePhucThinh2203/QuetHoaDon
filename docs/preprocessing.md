@@ -1,64 +1,55 @@
-# Preprocessing & Data Preparation Specification
+# Image, OCR, and Layout Preprocessing
 
-## 1. Raw Annotation Parsing
+## 1. Inference data path
 
-The training dataset file `mcocr_train_df.csv` contains structured annotations with custom serialization formats. The preprocessing pipeline applies the following extraction logic:
+The unsupervised inference pipeline starts from receipt images. Ground-truth annotation text and entity labels are not inputs to this path.
 
-### Safe Deserialization
-1. **Empty Row Handling:** Rows where `anno_num == 0` (such as index 1011 and 1091) have empty string fields for text and labels, and `'[]'` for polygons. These must be parsed into empty lists without triggering index errors.
-2. **Polygons:** Deserialized using `ast.literal_eval`. Each entry is a COCO-style dictionary:
-   - `bbox`: `[x, y, width, height]` (pixel coordinates)
-   - `segmentation`: `[[x1, y1, x2, y2, ...]]` (polygon vertex points)
-   - `width`, `height`: Reference image dimensions
-3. **Texts & Labels:** Deserialized by splitting on delimiter `|||`.
-   - Length assertion: $\text{len}(texts) == \text{len}(labels) == \text{len}(polygons)$.
-4. **Label Normalization:** Map known label anomalies:
-   - `"TOTAL_TOTAL_COST"` $\to$ `"TOTAL_COST"`
+1. Load the receipt and record original width/height.
+2. Apply necessary image preparation while retaining coordinate transforms.
+3. Run CRAFT to obtain text polygons and detection scores.
+4. Rectify each polygon and crop the corresponding text region.
+5. Run VietOCR on each crop.
+6. Attach the recognized text to the original polygon/bounding box.
+7. Estimate reading order and prepare LayoutXLM inputs.
 
----
+## 2. Bounding-box representation
 
-## 2. Geometric Coordinate Processing
+Use pixel coordinates in `[x0, y0, x1, y1]` form internally. Convert CRAFT polygons to axis-aligned boxes for LayoutXLM input, while retaining the original quadrilateral for perspective rectification.
 
-LayoutXLM requires integer bounding boxes scaled to $[0, 1000]$ relative to the original image dimensions $(W, H)$:
+Normalize coordinates to `[0, 1000]`:
 
-```python
-def normalize_bbox(bbox, width, height, scale=1000):
-  """Converts [x, y, w, h] in image pixels to [x0, y0, x1, y1] normalized to [0, scale]."""
-  x, y, w, h = bbox
-  x0 = max(0, min(scale, int(round((x / width) * scale))))
-  y0 = max(0, min(scale, int(round((y / height) * scale))))
-  x1 = max(0, min(scale, int(round(((x + w) / width) * scale))))
-  y1 = max(0, min(scale, int(round(((y + h) / height) * scale))))
-  return [min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)]
-```
+`x_norm = round(1000 * x / image_width)`
 
----
+`y_norm = round(1000 * y / image_height)`
 
-## 3. Token-Level BIO Alignment
+Clamp coordinates to the valid range and enforce `x0 <= x1`, `y0 <= y1`. LayoutXLM subword tokens inherit the bounding box of their parent OCR region. Special tokens use `[0, 0, 0, 0]`.
 
-For token classification in LayoutXLM:
-- Tokens are assigned BIO (Beginning, Inside, Outside) tags:
-  - `B-SELLER`, `I-SELLER`
-  - `B-ADDRESS`, `I-ADDRESS`
-  - `B-TIMESTAMP`, `I-TIMESTAMP`
-  - `B-TOTAL_COST`, `I-TOTAL_COST`
-  - `O` (Background / non-key tokens)
+## 3. Reading order and line grouping
 
-### Subword Expansion Rule
-When a word is split into $K$ subwords:
-- First subword receives tag: `B-{ENTITY}` (or `I-{ENTITY}` if continuing an entity from a previous word in the same span).
-- Subsequent $K-1$ subwords receive tag: `I-{ENTITY}`.
-- All $K$ subwords inherit the same normalized $[x_0, y_0, x_1, y_1]$ box.
+Sort regions using geometry with tolerance for multi-column layouts. A simple global top-to-bottom sort is insufficient for receipts with columns. Group regions into text lines/rows based on vertical overlap and center distance, then order regions left-to-right within each row. Preserve the original order and grouping confidence for later correction.
 
----
+## 4. Unsupervised grouping features
 
-## 4. Leakage-Free Grouped Splitting
+For each OCR region, derive:
+- LayoutXLM contextual embedding;
+- normalized box and center;
+- text length and character composition;
+- numeric/currency/date indicators;
+- alignment with adjacent regions;
+- relative position within the receipt.
 
-> [!IMPORTANT]
-> A simple random 80/20 train/validation split introduces massive **data leakage**: receipts from the same retail chain (e.g. VinCommerce, Co.opMart, Circle K) share identical header fonts, addresses, and layout structures.
+Cluster or link regions using these features. Do not interpret raw cluster IDs as entity names. A separate candidate interpretation layer assigns possible semantic roles from contextual, lexical, geometric, and arithmetic evidence.
 
-### Splitting Protocol
-1. Extract canonical merchant identifier from the first `SELLER` text in each receipt.
-2. Group images by merchant identifier.
-3. Apply `GroupKFold` or `StratifiedGroupKFold` to ensure all receipts from a particular merchant chain appear exclusively in *either* the training split or the validation split.
-4. Validation performance then genuinely measures generalization to previously unseen invoice layouts.
+## 5. Annotation isolation
+
+`annotation_parser.py` reads MC-OCR annotations for data-quality inspection and evaluation workflows. It is not part of the production/inference data path. Do not use its `text`, `label`, or ground-truth `bbox` values to train LayoutXLM, construct pseudo-labels, tune clustering thresholds, or correct OCR output in an experiment described as unsupervised.
+
+For a strict unsupervised experiment, freeze algorithm parameters before inspecting held-out ground-truth results. Report evaluation as a separate measurement step.
+
+## 6. Quality handling
+
+- Keep detection score and OCR confidence as separate fields.
+- If the OCR library does not provide a calibrated confidence, use `null`.
+- Keep multiple candidates when a field is ambiguous.
+- Never fabricate missing seller, address, item, or total values.
+- Mark uncertain or missing outputs explicitly.

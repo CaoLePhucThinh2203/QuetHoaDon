@@ -1,67 +1,47 @@
-# Multi-Dataset Configuration
-# Active dataset selection: "mc_ocr_2021" (primary), "sroie" (planned), "cord" (planned)
 active_dataset: "mc_ocr_2021"
 
-# 1. Primary Dataset: MC-OCR 2021 (Vietnamese)
 mc_ocr_2021:
   name: "MC-OCR 2021"
   language: "vi"
-  status: "active"
+  status: "primary"
   kaggle_slug: "domixi1989/vietnamese-receipts-mc-ocr-2021"
   raw_dir: "data/raw/mc-ocr-2021"
   raw_train_csv: "mcocr_train_df.csv"
   raw_val_sample_csv: "mcocr_val_sample_df.csv"
   train_image_subfolder: "train_images/train_images"
   val_image_subfolder: "val_images/val_images"
-  target_labels:
-    - "SELLER"
-    - "ADDRESS"
-    - "TIMESTAMP"
-    - "TOTAL_COST"
-  label_normalization:
-    SELLER: "SELLER"
-    ADDRESS: "ADDRESS"
-    TIMESTAMP: "TIMESTAMP"
-    TOTAL_COST: "TOTAL_COST"
-    TOTAL_TOTAL_COST: "TOTAL_COST"
+  annotation_usage: "audit_and_final_evaluation_only"
 
-# 2. Planned Dataset: SROIE 2019 (English)
 sroie:
   name: "SROIE 2019"
   language: "en"
   status: "planned"
   raw_dir: "data/raw/sroie"
-  canonical_mapping:
-    company: "SELLER"
-    address: "ADDRESS"
-    date: "TIMESTAMP"
-    total: "TOTAL_COST"
 
-# 3. Planned Dataset: CORD 2019 (Indonesian)
 cord:
-  name: "CORD 2019"
+  name: "CORD"
   language: "id"
   status: "planned"
   raw_dir: "data/raw/cord"
-  canonical_mapping:
-    total.total_price: "TOTAL_COST"
-    total.cashprice: "TOTAL_COST"
 
-# Unified BIO Token Classification Schema (Canonical 4-class)
-bio_labels:
-  - "O"
-  - "B-SELLER"
-  - "I-SELLER"
-  - "B-ADDRESS"
-  - "I-ADDRESS"
-  - "B-TIMESTAMP"
-  - "I-TIMESTAMP"
-  - "B-TOTAL_COST"
-  - "I-TOTAL_COST"
+extraction_fields:
+  required: ["SELLER", "ADDRESS", "ITEM_NAME", "ITEM_PRICE", "TOTAL_COST"]
+  optional: ["QUANTITY", "TIMESTAMP"]
 
-# Data Splitting
-split:
-  train_ratio: 0.8
-  val_ratio: 0.2
-  group_by_merchant: true  # Prevent template leakage
-  random_state: 42
+unsupervised:
+  use_ground_truth_labels: false
+  feature_sources:
+    - "layoutxlm_hidden_states"
+    - "normalized_bbox"
+    - "text_shape"
+    - "numeric_and_currency_patterns"
+    - "row_column_alignment"
+  clustering:
+    algorithm: "hdbscan"
+    enabled: true
+    min_cluster_size: 3
+  candidate_assignment:
+    use_spatial_context: true
+    use_lexical_patterns: true
+    use_arithmetic_validation: true
+    preserve_ambiguous_candidates: true

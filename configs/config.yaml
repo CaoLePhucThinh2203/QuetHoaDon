@@ -1,7 +1,6 @@
-# Pipeline Orchestration Configuration
-project_name: "ai-invoice-intelligence"
-version: "0.1.0"
-environment: "kaggle"  # "local" or "kaggle"
+project_name: "unsupervised-receipt-understanding"
+version: "0.2.0"
+environment: "kaggle"
 seed: 42
 
 paths:
@@ -9,6 +8,11 @@ paths:
   local_data_dir: "data/raw"
   output_dir: "/kaggle/working/outputs"
   cache_dir: "/kaggle/working/cache"
+
+data_policy:
+  use_receipt_entity_labels_for_training: false
+  annotations_allowed_for: ["dataset_audit", "final_evaluation"]
+  inference_reads_annotations: false
 
 logging:
   level: "INFO"

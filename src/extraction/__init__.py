@@ -1,16 +1,16 @@
-"""Key information extraction schemas, label encodings, and entity definitions."""
+"""Canonical fields and output structure for unsupervised receipt extraction."""
 from src.extraction.schema import (
     TargetEntity,
-    BIO_LABELS,
-    LABEL2ID,
-    ID2LABEL,
-    get_bio_label,
+    REQUIRED_OUTPUT_FIELDS,
+    OPTIONAL_OUTPUT_FIELDS,
+    empty_field,
+    empty_receipt_result,
 )
 
 __all__ = [
     "TargetEntity",
-    "BIO_LABELS",
-    "LABEL2ID",
-    "ID2LABEL",
-    "get_bio_label",
+    "REQUIRED_OUTPUT_FIELDS",
+    "OPTIONAL_OUTPUT_FIELDS",
+    "empty_field",
+    "empty_receipt_result",
 ]

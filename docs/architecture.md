@@ -1,94 +1,89 @@
-# System Architecture Specification
+# System Architecture
 
-## 1. End-to-End Pipeline Overview
+## 1. Purpose
 
-The system processes an input image of a Vietnamese receipt or invoice and produces structured key-value extractions. The pipeline is staged across three core deep learning models:
+The system receives a photographed or scanned receipt and extracts merchant identity/location, purchased item names, item prices, and the receipt total. The project follows an inference-first, unsupervised extraction strategy: no receipt-specific entity labels are used to train a task-specific extraction head.
+
+## 2. End-to-end flow
 
 ```mermaid
 flowchart TD
-    RawImg["Input Receipt Image (Mobile Capture)"] --> Stage1["Stage 1: CRAFT\nCharacter Region Awareness Text Detection"]
-    
-    subgraph S1["Detection Stage"]
-        Stage1 --> Polygons["Text Polygons & Quad BBoxes\n(x1,y1, x2,y2, x3,y3, x4,y4)"]
-        Polygons --> Rectify["Perspective Rectification & Crop\n(Horizontal Text Strips)"]
-    end
-    
-    subgraph S2["Recognition Stage"]
-        Rectify --> Stage2["Stage 2: VietOCR\nVGG-Transformer / VGG-Seq2Seq"]
-        Stage2 --> Words["Transcribed Vietnamese Strings\n(Full Unicode Diacritics)"]
-    end
-    
-    subgraph S3["Extraction Stage"]
-        Words --> Align["Feature Alignment & Normalization\n- Box scale to [0, 1000]\n- Subword Token-Box Replication\n- Sequence Length Truncation (<= 512)"]
-        Polygons -.-> Align
-        Align --> Stage3["Stage 3: LayoutXLM\nMultimodal Layout Transformer"]
-        Stage3 --> BIO["Token BIO Classification\n(B-SELLER, I-SELLER, etc.)"]
-    end
-    
-    BIO --> PostProc["Post-Processing & Aggregation"]
-    PostProc --> JSONOut["Structured JSON Output:\n{seller, address, timestamp, total_cost}"]
+    A["Receipt image"] --> B["Preprocessing: resize, color, denoise, deskew if needed"]
+    B --> C["CRAFT text detection"]
+    C --> D["Text polygons / bounding boxes"]
+    D --> E["Perspective rectification + crop"]
+    E --> F["VietOCR recognition"]
+    F --> G["OCR text + confidence + original bbox"]
+    G --> H["Reading-order and geometry preparation"]
+    H --> I["LayoutXLM pretrained encoder"]
+    I --> J["Contextual and layout embeddings"]
+    J --> K["Unsupervised grouping / clustering"]
+    K --> L["Semantic candidate assignment + consistency checks"]
+    L --> M["JSON with confidence and uncertainty"]
 ```
 
----
+## 3. Stage responsibilities
 
-## 2. Model Responsibilities & Interfaces
+### Stage 0 — Image preparation
+Preserve the original image dimensions and coordinate frame. Apply only transformations needed for detection (for example, color conversion, resizing, or mild denoising). If the image is resized, retain scale factors so detected coordinates can be mapped back to the original image.
 
-### Stage 1: Text Detection — CRAFT
-- **Model:** Character Region Awareness for Text Detection (CRAFT).
-- **Responsibility:** Localize text instances across arbitrary document layouts, detecting characters and affinities between adjacent characters.
-- **Input:** RGB receipt image `(H, W, 3)`.
-- **Output:** Set of oriented 4-point bounding polygons:
-  $$\mathcal{P} = \{[(x_1, y_1), (x_2, y_2), (x_3, y_3), (x_4, y_4)]_i\}_{i=1}^N$$
-- **Pre-Processing for Stage 2:** Each polygon is transformed via an affine or perspective warp into an upright rectangular image strip of height 32px before transmission to VietOCR.
+### Stage 1 — CRAFT text detection
+CRAFT identifies character/text regions and returns polygons. Convert polygons into crop regions, but retain the quadrilateral and axis-aligned box in original-image coordinates. Detection confidence is a region-level signal and must not be confused with OCR confidence.
 
-### Stage 2: Text Recognition — VietOCR
-- **Model:** VietOCR (VGG Feature Extractor + Transformer / Seq2Seq Attention Decoder).
-- **Responsibility:** Transcribe cropped horizontal image patches into grammatically valid Vietnamese strings preserving tone marks (sắc, huyền, hỏi, ngã, nặng) and vowel modifiers (ă, â, ê, ô, ơ, ư, đ).
-- **Input:** Cropped image strip `(32, W_{crop}, 3)`.
-- **Output:** UTF-8 text string $T_i$ corresponding to polygon $P_i$.
+### Stage 2 — Rectification and VietOCR
+Use a perspective transform for rotated or skewed quadrilateral regions. Pass each rectified crop to pretrained VietOCR. Store:
+- recognized text;
+- OCR confidence, if exposed by the chosen implementation;
+- original polygon and bounding box;
+- crop identifier and detection score.
 
-### Stage 3: Key Information Extraction — LayoutXLM
-- **Model:** `microsoft/layoutxlm-base` (Multilingual Document Understanding Transformer).
-- **Responsibility:** Jointly model text semantics, 2D spatial arrangement, and visual tokens to classify each token into target entity spans.
-- **Input:**
-  1. `input_ids`: Subword token indices produced by the XLM-RoBERTa SentencePiece tokenizer.
-  2. `bbox`: 2D bounding boxes normalized to $[0, 1000]$ integer coordinates for every token: $[x_0, y_0, x_1, y_1]$.
-  3. `attention_mask`: Attention mask for valid tokens vs padding.
-- **Output:** Sequence of BIO entity tags (`B-SELLER`, `I-SELLER`, `B-ADDRESS`, `I-ADDRESS`, `B-TIMESTAMP`, `I-TIMESTAMP`, `B-TOTAL_COST`, `I-TOTAL_COST`, `O`).
+If VietOCR does not expose a calibrated confidence for a selected decoder, store `null`; do not fabricate one.
 
----
+### Stage 3 — LayoutXLM feature extraction
+Normalize each box to the LayoutXLM coordinate range `[0, 1000]` using the original page width and height. Tokenize recognized text with the LayoutXLM tokenizer. For subword tokens, propagate the parent OCR region's bounding box. Run the pretrained LayoutXLM encoder and retain contextual hidden states.
 
-## 3. Critical Technical Challenges & Design Decisions
+In this project, LayoutXLM is a **feature extractor**, not a supervised BIO token classifier. Do not describe it as predicting `B-SELLER`, `I-SELLER`, or other entity tags unless a separately trained classification head is later introduced and the project scope is explicitly changed.
 
-### 3.1 Why LayoutXLM Instead of Vanilla LayoutLMv1?
-- **Vanilla LayoutLMv1:** Built on `bert-base-uncased` WordPiece tokenizer. The English vocabulary lacks Vietnamese accent combinations. When tokenizing words like `"Phường Cẩm Sơn"` or `"Tổng tiền"`, the tokenizer produces massive rates of `[UNK]` tokens or splits single words into meaningless ASCII character fragments.
-- **LayoutXLM:** Pre-trained on multilingual document corpora using SentencePiece (XLM-RoBERTa backbone). Vietnamese diacritics and subword morphology are natively preserved.
+### Stage 4 — Unsupervised structure discovery
+Build features for each OCR region from:
+- LayoutXLM contextual representation;
+- normalized position, width, height, and center;
+- text shape (alphabetic, numeric, mixed);
+- amount/date pattern indicators;
+- alignment and distance to neighboring regions.
 
-### 3.2 Bounding Box Normalization & Subword Alignment
-1. **Coordinate Normalization:**
-   Original image dimensions $(W, H)$ vary per mobile capture. Coordinates must be strictly scaled to integers in the range $[0, 1000]$:
-   $$x_{norm} = \min\left(1000, \max\left(0, \text{int}\left(1000 \times \frac{x}{W}\right)\right)\right)$$
-   $$y_{norm} = \min\left(1000, \max\left(0, \text{int}\left(1000 \times \frac{y}{H}\right)\right)\right)$$
-   Constraint: $x_0 \le x_1$ and $y_0 \le y_1$.
+Use clustering or similarity grouping to discover repeated structural roles and line-item rows. Candidate grouping is followed by semantic interpretation rules. Cluster IDs have no inherent meaning: cluster `2` does not intrinsically mean `TOTAL_COST`.
 
-2. **Subword Token Replication:**
-   A single detected word (e.g., `"VinCommerce"`, bbox $[x_0, y_0, x_1, y_1]$) may tokenize into multiple subwords: `["_Vin", "Com", "merce"]`. Each subword token must inherit the spatial bounding box of the parent word.
+### Stage 5 — Candidate interpretation and validation
+Assign candidate roles using multiple signals, not position alone:
+- seller: merchant-like text in the header, potentially supported by business-name cues;
+- address/location: address-like text near merchant identity;
+- item name: text region in a repeated product-row structure;
+- item price: numeric/currency region aligned with an item row;
+- total: amount candidate in the summary/footer region, preferably near total-related wording.
 
-3. **Special Token Handling:**
-   Special tokens (`<s>`, `</s>`, `<pad>`) do not correspond to image text and must be assigned dummy coordinates `[0, 0, 0, 0]`.
+Check arithmetic where quantities and prices are available, compare candidate totals, and preserve alternative candidates when evidence conflicts. Return `uncertain` rather than silently selecting a weak candidate.
 
-### 3.3 Sequence Length Limits (512 Tokens)
-- Long supermarket receipts contain detailed itemized lists, easily exceeding 512 subword tokens.
-- Naive right-truncation loses the bottom third of the receipt—the exact location where `TOTAL_COST` and `TIMESTAMP` are almost universally positioned.
-- **Strategy:** Sliding-window evaluation with 128-token overlap, or layout-guided spatial filtering that retains top and bottom document bands.
+## 4. Data contracts
 
----
+A text region should carry at least:
+`region_id`, `polygon`, `bbox_xyxy`, `bbox_normalized`, `text`, `detection_score`, `ocr_confidence`, `reading_order`.
 
-## 4. Current Limitations & Unresolved Technical Questions
+A final extracted field should carry:
+`text`, `bbox`, `confidence` (only if meaningful scores are available), `status`, and optionally `alternatives`.
 
-> [!WARNING]
-> End-to-end feasibility is a hypothesis currently being tested in Week 3 sprint tasks. It cannot be considered validated until the following questions are resolved via Kaggle experiments:
+Line items should preserve associations between name, quantity, and price. A price must not be attached to an item solely because it is the nearest number if row alignment is ambiguous.
 
-1. **OCR Error Propagation:** If VietOCR misrecognizes numerals or keywords (e.g., transcribing `"Tổng tiền"` as `"Tông tiên"`), does LayoutXLM still recognize the semantic role, or does attention fail?
-2. **CRAFT Word vs Line Granularity:** VietOCR performs best on full line crops, whereas LayoutXLM performs best with word-level 2D bounding boxes. Bounding boxes must either be split geometrically into words or line-level boxes must be shared across tokens.
-3. **Background Text Representation in Training:** The raw dataset `mcocr_train_df.csv` annotates only the 4 key entities. Training LayoutXLM with only positive key lines risks severe false-positive rates when deployed on full receipts with dozens of unannotated items.
+## 5. Unsupervised scope and limitations
+
+- The upstream CRAFT, VietOCR, and LayoutXLM weights are pretrained; their original training may have used supervised data.
+- This project does not fine-tune these models on MC-OCR entity labels.
+- LayoutXLM embeddings plus clustering do not provide guaranteed semantic entity extraction. Candidate interpretation is a separate algorithmic layer.
+- Receipt templates, languages, image quality, and OCR errors can change cluster behavior.
+- MC-OCR annotations must remain isolated from the unsupervised inference path. They can be used for final evaluation only, with evaluation results reported separately.
+
+## 6. Implementation status
+
+Implemented: bounding-box geometry utilities, abstract detector/recognizer contracts, MC-OCR annotation parsing for audit, extraction schema, configuration, and unit tests.
+
+Not established by the current repository alone: concrete CRAFT inference, VietOCR inference, perspective crop implementation, LayoutXLM feature extraction, unsupervised clustering, semantic assignment, end-to-end execution, or measured extraction performance.

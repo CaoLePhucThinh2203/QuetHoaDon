@@ -1,171 +1,92 @@
-# AI Invoice Intelligence
+# Unsupervised Receipt Understanding
 
-An AI-powered invoice recognition and key information extraction (KIE) system tailored for Vietnamese mobile-captured receipts and invoices.
+A research prototype for extracting structured information from Vietnamese receipts using pretrained text detection, OCR, and document-layout representations, without training a task-specific classifier on receipt entity labels.
 
----
+## Project objective
 
-## 📌 Project Overview
+Given a receipt image, produce structured data containing:
+- merchant / seller name;
+- merchant address or location;
+- item names;
+- item prices (and quantity when it can be reliably associated);
+- receipt total.
 
-Processing real-world Vietnamese receipts introduces significant computer vision and NLP challenges: severe perspective distortions, uneven lighting, faded ink, wrinkled paper, and complex multilingual layouts with full Vietnamese diacritics.
+The output must retain source text, bounding boxes, confidence/quality indicators, and an uncertainty status so that ambiguous values are not silently presented as facts.
 
-This project implements an end-to-end multi-modal deep learning pipeline:
-1. **Text Detection (CRAFT):** Localizes arbitrary-oriented text lines and words via character affinity heatmaps.
-2. **Text Recognition (VietOCR):** Converts cropped image patches into Unicode Vietnamese strings preserving tone marks and vowel modifiers.
-3. **Key Information Extraction (LayoutXLM):** Jointly models 2D spatial arrangements and multilingual semantic representations to extract target entities:
-   - **`SELLER`**: Store or company name.
-   - **`ADDRESS`**: Merchant address or branch location.
-   - **`TIMESTAMP`**: Transaction date and time.
-   - **`TOTAL_COST`**: Final total amount payable.
-
----
-
-## 🏗️ System Architecture
+## Proposed pipeline
 
 ```mermaid
-flowchart LR
-    A["Raw Receipt Image"] --> B["Stage 1: CRAFT\nText Detection"]
-    B --> C["Crop & Perspective Rectification"]
-    C --> D["Stage 2: VietOCR\nVietnamese OCR"]
-    D --> E["Feature Alignment\n(Coords to [0,1000] & Subword mapping)"]
-    E --> F["Stage 3: LayoutXLM\nToken BIO Classification"]
-    F --> G["Structured JSON Output"]
+flowchart TD
+    A["Receipt image"] --> B["Image preprocessing"]
+    B --> C["CRAFT: detect text regions"]
+    C --> D["Polygon rectification and crop"]
+    D --> E["VietOCR: recognize text"]
+    E --> F["Text + bounding boxes + reading order"]
+    F --> G["LayoutXLM: pretrained contextual/layout representations"]
+    G --> H["Unsupervised grouping and candidate clustering"]
+    H --> I["Spatial / lexical post-processing"]
+    I --> J["Structured receipt JSON + uncertainty"]
 ```
 
-For complete technical specifications, see [System Architecture Specification](docs/architecture.md).
+### Stage 1 — CRAFT text detection
+CRAFT detects text regions and returns polygons or bounding boxes in the receipt image's 2D coordinate space. It is used as a pretrained detector; this project does not fine-tune it on receipt annotations. Convert each polygon to a crop region while retaining its original coordinates and detection score.
 
----
+### Stage 2 — VietOCR text recognition
+Rectify each detected polygon (perspective transform where appropriate), crop it, and pass the crop to a pretrained VietOCR recognizer. Store the recognized string and OCR confidence alongside the corresponding original-image bounding box. Reading order is estimated from geometry; do not discard the coordinates after cropping.
 
-## 📂 Repository Layout
+### Stage 3 — LayoutXLM representations and unsupervised extraction
+LayoutXLM is used as a pretrained multimodal document encoder to represent recognized text together with normalized 2D layout. Its hidden representations are features, not entity labels. The project does **not** fine-tune a token-classification head using BIO labels.
 
-```text
-ai-invoice-intelligence/
-├── README.md                          # Project documentation and quickstart
-├── requirements.txt                   # Core project dependencies
-├── .gitignore                         # Data, model weights, and credential exclusion
-├── configs/                           # Central configuration files
-│   ├── config.yaml                    # Runtime environment & paths
-│   ├── dataset.yaml                   # MC-OCR label schema & split rules
-│   └── model.yaml                     # Model hyperparameters (CRAFT, VietOCR, LayoutXLM)
-├── docs/                              # Detailed engineering documentation
-│   ├── architecture.md                # 3-stage model pipeline & tokenizer analysis
-│   ├── dataset_documentation.md       # MC-OCR 2021 schema, access & licensing
-│   └── preprocessing.md               # Coordinate normalization & BIO alignment
-├── notebooks/                         # Interactive workflows
-│   └── kaggle/
-│       └── 01_mc_ocr_eda.ipynb        # MC-OCR exploratory data analysis & verification
-├── src/                               # Modular Python source package
-│   ├── common/                        # Geometric & bounding box utilities
-│   │   └── bbox_utils.py              # Normalization [0,1000], IoU, polygon conversions
-│   ├── preprocessing/                 # Annotation parsing & data cleaning
-│   │   └── annotation_parser.py       # Safe deserialization & anomaly correction
-│   ├── detection/                     # CRAFT detector interfaces
-│   │   └── detector.py
-│   ├── recognition/                   # VietOCR recognizer interfaces
-│   │   └── recognizer.py
-│   └── extraction/                    # LayoutXLM schemas & token classification
-│       └── schema.py                  # BIO labeling scheme (9 classes)
-├── tests/                             # Unit tests
-│   ├── test_bbox_utils.py             # Geometric transformations & invariant assertions
-│   ├── test_annotation_parser.py      # Anomaly & empty row parsing tests
-│   └── test_schema.py                 # Label encodings & bijective mapping tests
-└── reports/                           # Academic & milestone reports
-    └── week3_progress_report.md       # Week 3 Progress Report
-```
+Use the representations and spatial relations to group text regions and generate candidates:
+- repeated aligned rows and columns are candidate line-item structures;
+- text-like regions are candidate item descriptions;
+- nearby numeric regions are candidate quantities, unit prices, or line amounts;
+- merchant/address candidates are searched in the upper/header region and grouped by semantic and spatial similarity;
+- total candidates are searched in the lower/footer region and compared with nearby total-related text and amount patterns.
 
----
+Unsupervised clustering alone does not guarantee semantic labels such as `SELLER` or `TOTAL`. The extraction layer therefore combines embeddings, geometric grouping, language/number patterns, and consistency checks. Low-confidence or conflicting candidates must be returned as uncertain or sent for manual review.
 
-## 🚀 Quickstart & Setup
+## Important methodological clarification
 
-### 1. Local Environment Setup (Lightweight)
+“Unsupervised” here means **no receipt-specific ground-truth entity labels are used to train the extraction model**. CRAFT, VietOCR, and LayoutXLM are pretrained models and may have been trained with supervision by their original developers. Reusing their pretrained weights for inference or feature extraction is not the same as training this project with labeled receipt data.
 
-Clone the repository and install core dependencies:
+LayoutXLM is not, by itself, an unsupervised key-value extractor. It produces contextual representations. Clustering those representations does not automatically identify which cluster means seller, address, item name, or total. Semantic candidate assignment requires the documented unsupervised/heuristic post-processing layer, and its accuracy must be evaluated.
+
+## Dataset policy
+
+MC-OCR 2021 is used as the primary Vietnamese receipt dataset. Its annotations may be used for dataset inspection and held-out evaluation, but must not be fed into training, fine-tuning, pseudo-label correction, or threshold selection if the experiment is claimed to be fully unsupervised. Keep annotation access separated from the inference pipeline.
+
+SROIE and CORD remain planned integrations unless their files are actually present. Do not report them as downloaded or evaluated without evidence.
+
+## Repository status
+
+The repository currently contains utility functions, abstract detector/recognizer interfaces, an MC-OCR annotation parser, configuration files, documentation, and unit tests. Concrete CRAFT/VietOCR wrappers, LayoutXLM feature extraction, clustering, full end-to-end orchestration, and evaluation are not implemented merely by the presence of these interfaces/configurations.
+
+## Run tests
+
+From the repository root:
+
 ```bash
-git clone https://github.com/kitalikedev/ai-invoice-intelligence.git
-cd ai-invoice-intelligence
-
-# Install dependencies
-pip install -r requirements.txt
+python -m unittest discover -s tests -v
 ```
 
-### 2. Running Unit Tests
+## Output contract
 
-Run the full automated test suite:
-```bash
-python3 -m unittest discover -s tests -v
+Example structure (illustrative schema, not a claim of achieved model accuracy):
+
+```json
+{
+  "seller": {"text": null, "bbox": null, "confidence": null, "status": "not_found"},
+  "address": {"text": null, "bbox": null, "confidence": null, "status": "not_found"},
+  "items": [
+    {
+      "name": {"text": null, "bbox": null, "confidence": null},
+      "quantity": null,
+      "price": {"text": null, "bbox": null, "confidence": null}
+    }
+  ],
+  "total": {"text": null, "bbox": null, "confidence": null, "status": "uncertain"}
+}
 ```
 
-### 3. Kaggle Training & EDA Workflow
-
-Model training and heavy GPU workloads are executed on Kaggle:
-1. Open [Kaggle Notebooks](https://www.kaggle.com/code).
-2. Create a new notebook and click **Add Input** in the right-hand panel.
-3. Search and attach the dataset: **`domixi1989/vietnamese-receipts-mc-ocr-2021`**.
-4. Import and execute `notebooks/kaggle/01_mc_ocr_eda.ipynb`.
-5. The notebook automatically detects dataset paths, validates annotations, displays sample visualizations, and exports `mc_ocr_data_quality_report.json` to `/kaggle/working/`.
-
----
-
-## 📊 Dataset: MC-OCR 2021
-
-- **Source:** MC-OCR 2021 Challenge (IEEE RIVF 2021).
-- **Scale:** 1,155 annotated training receipts, 391 validation images.
-- **License:** Non-commercial academic research and benchmarking.
-- **Data Governance:** In compliance with project security guidelines, all raw images and annotations are stored in Kaggle and strictly gitignored locally under `data/`.
-
-For complete details, see [Dataset Documentation](docs/dataset_documentation.md).
-
----
-
-## 👥 Team & Responsibilities
-
-- **Member 1 (Project Lead & MLOps):** Repository architecture, Git governance, interface contracts, report compilation.
-- **Member 2 (Data Engineering):** Kaggle dataset ingestion, exploratory analysis, store-grouped train/val splitting.
-- **Member 3 (Vision & OCR):** CRAFT text detection, image rectification, VietOCR character/word error rate benchmarks.
-- **Member 4 (Information Extraction):** LayoutXLM tokenizer alignment, BIO label generation, token classification baseline.
-
----
-
-## 🛡️ Team Collaboration & Git Workflow
-
-To ensure code quality, dataset safety, and prevent regressions, all team contributions must strictly follow this collaborative workflow:
-
-### 1. Protected Branch Rules
-- **`main` is the protected integration branch:** Direct pushes to `main` are strictly forbidden.
-- **Pull Requests (PR) Only:** All changes must be integrated into `main` via a GitHub Pull Request.
-- **Code Owner Review:** Approval from the Code Owner (`@kitalikedev`, defined in `.github/CODEOWNERS`) is required before any PR can be merged.
-- **CI / Local Verification:** All unit tests must pass (`python3 -m unittest discover -s tests -v`) before requesting a PR review.
-- **Zero-Data Policy:** Never commit raw datasets, images, CSVs, model weights (`*.pth`), or credentials (`kaggle.json`, `.env`) to Git.
-
-### 2. Branch Naming Convention
-Branches must be created from the latest `main` branch using structured prefixes:
-- `feat/<feature-name>`: New model components, pipeline stages, or utilities (e.g., `feat/vietocr-wrapper`).
-- `fix/<bug-name>`: Bug fixes or data alignment corrections (e.g., `fix/total-cost-normalization`).
-- `docs/<doc-name>`: Documentation, architecture specs, or report updates (e.g., `docs/multi-dataset-spec`).
-- `test/<test-name>`: New unit tests or validation suites (e.g., `test/bbox-clamping`).
-- `data/<dataset-name>`: Dataset ingestion scripts or adapters (e.g., `data/sroie-adapter`).
-
-### 3. Commit Message Convention
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) standard:
-```text
-<type>(<scope>): <concise description in imperative mood>
-
-[optional body explaining context and trade-offs]
-```
-- `feat`: A new feature or model capability.
-- `fix`: A bug fix.
-- `docs`: Documentation changes only.
-- `test`: Adding or modifying tests.
-- `refactor`: Code refactoring that neither fixes a bug nor adds a feature.
-- `chore`: Maintenance tasks, `.gitignore` updates, dependency changes.
-
-*Example:* `feat(extraction): add 9-class BIO schema and token label mapping`
-
----
-
-## 📄 Documentation Links
-
-- [System Architecture](docs/architecture.md)
-- [Multi-Dataset Architecture (MC-OCR, SROIE, CORD)](docs/multi_dataset_architecture.md)
-- [Dataset Documentation](docs/dataset_documentation.md)
-- [Preprocessing & Token Alignment](docs/preprocessing.md)
-- [Week 3 Progress Report](reports/week3_progress_report.md)
+No example values are populated because no receipt inference result is supplied here.

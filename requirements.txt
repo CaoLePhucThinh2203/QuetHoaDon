@@ -21,3 +21,6 @@ seqeval>=1.2.2
 
 # Testing & Quality
 pytest>=7.3.0
+
+# Optional unsupervised density-based clustering
+hdbscan>=0.8.33
