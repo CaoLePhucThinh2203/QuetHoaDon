@@ -1,0 +1,15 @@
+# Pipeline Orchestration Configuration
+project_name: "ai-invoice-intelligence"
+version: "0.1.0"
+environment: "kaggle"  # "local" or "kaggle"
+seed: 42
+
+paths:
+  kaggle_input_dir: "/kaggle/input/vietnamese-receipts-mc-ocr-2021"
+  local_data_dir: "data/raw"
+  output_dir: "/kaggle/working/outputs"
+  cache_dir: "/kaggle/working/cache"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

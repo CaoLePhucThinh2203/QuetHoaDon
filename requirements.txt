@@ -1,0 +1,23 @@
+# Core Deep Learning & NLP
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.30.0
+datasets>=2.14.0
+sentencepiece>=0.1.99
+
+# Optical Character Recognition
+vietocr>=0.3.8
+opencv-python-headless>=4.7.0.72
+pillow>=9.5.0
+
+# Data Science & Utilities
+numpy>=1.24.0
+pandas>=2.0.0
+pyyaml>=6.0
+pydantic>=2.0.0
+tqdm>=4.65.0
+scikit-learn>=1.2.0
+seqeval>=1.2.2
+
+# Testing & Quality
+pytest>=7.3.0

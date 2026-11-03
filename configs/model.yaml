@@ -1,0 +1,31 @@
+# Model Configuration
+
+# Stage 1: Text Detection
+detection:
+  model_name: "CRAFT"
+  text_threshold: 0.7
+  link_threshold: 0.4
+  low_text: 0.4
+  poly: true
+  device: "cuda"
+
+# Stage 2: Text Recognition
+recognition:
+  model_name: "VietOCR"
+  backbone: "vgg_transformer"  # Options: "vgg_transformer", "vgg_seq2seq"
+  device: "cuda"
+  img_height: 32
+  img_width_min: 32
+  img_width_max: 512
+
+# Stage 3: Key Information Extraction
+extraction:
+  model_name: "microsoft/layoutxlm-base"
+  max_seq_length: 512
+  batch_size: 4
+  learning_rate: 5e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  num_epochs: 10
+  eval_strategy: "epoch"
+  coordinate_scale: 1000  # LayoutXLM expects integer coordinates in [0, 1000]
