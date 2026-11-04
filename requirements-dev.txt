@@ -1,0 +1,7 @@
+# Light dependencies: enough to run the whole unit-test suite on a laptop or in CI.
+numpy>=1.24.0
+opencv-python-headless>=4.7.0.72
+pillow>=9.5.0
+pyyaml>=6.0
+scikit-learn>=1.2.0
+tqdm>=4.65.0

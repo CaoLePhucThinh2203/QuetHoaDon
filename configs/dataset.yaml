@@ -3,45 +3,27 @@ active_dataset: "mc_ocr_2021"
 mc_ocr_2021:
   name: "MC-OCR 2021"
   language: "vi"
-  status: "primary"
   kaggle_slug: "domixi1989/vietnamese-receipts-mc-ocr-2021"
-  raw_dir: "data/raw/mc-ocr-2021"
   raw_train_csv: "mcocr_train_df.csv"
   raw_val_sample_csv: "mcocr_val_sample_df.csv"
   train_image_subfolder: "train_images/train_images"
   val_image_subfolder: "val_images/val_images"
-  annotation_usage: "audit_and_final_evaluation_only"
+  # MC-OCR annotates ONLY these four fields (annotation category ids 15-18).
+  # ITEM_NAME / ITEM_PRICE / QUANTITY have no ground truth in this dataset.
+  annotated_fields: ["SELLER", "ADDRESS", "TIMESTAMP", "TOTAL_COST"]
+  split:
+    method: "invoice_level_random"     # src/preprocessing/dataset_preparer.py
+    train_ratio: 0.8
+    validation_ratio: 0.1
+    test_ratio: 0.1
+    seed: 42
 
-sroie:
-  name: "SROIE 2019"
-  language: "en"
-  status: "planned"
-  raw_dir: "data/raw/sroie"
-
-cord:
-  name: "CORD"
-  language: "id"
-  status: "planned"
-  raw_dir: "data/raw/cord"
-
+# Output schema of the system (see src/extraction/schema.py).
 extraction_fields:
-  required: ["SELLER", "ADDRESS", "ITEM_NAME", "ITEM_PRICE", "TOTAL_COST"]
-  optional: ["QUANTITY", "TIMESTAMP"]
+  evaluable_on_mc_ocr: ["SELLER", "ADDRESS", "TIMESTAMP", "TOTAL_COST"]
+  qualitative_only: ["ITEM_NAME", "ITEM_PRICE", "QUANTITY"]
 
-unsupervised:
-  use_ground_truth_labels: false
-  feature_sources:
-    - "layoutxlm_hidden_states"
-    - "normalized_bbox"
-    - "text_shape"
-    - "numeric_and_currency_patterns"
-    - "row_column_alignment"
-  clustering:
-    algorithm: "hdbscan"
-    enabled: true
-    min_cluster_size: 3
-  candidate_assignment:
-    use_spatial_context: true
-    use_lexical_patterns: true
-    use_arithmetic_validation: true
-    preserve_ambiguous_candidates: true
+# Not integrated. Keep only if/when files are actually downloaded and inspected.
+planned_datasets:
+  sroie: {name: "SROIE 2019", language: "en"}
+  cord: {name: "CORD", language: "id"}

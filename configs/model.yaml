@@ -1,41 +1,31 @@
-# Pretrained inference components; no receipt-specific supervised fine-tuning.
+# Pretrained components, inference only (baseline). Read by src/common/config.py.
+
+preprocessing:
+  target_max_dim: 1280      # longest side after resize
+  enhance: true             # CLAHE + bilateral filter; set false if OCR quality drops
+  min_skew: 0.5             # degrees; smaller angles are ignored
+  max_skew: 15.0
 
 detection:
   model_name: "CRAFT"
-  pretrained: true
-  inference_only: true
+  device: "cuda"
   text_threshold: 0.7
   link_threshold: 0.4
   low_text: 0.4
-  polygon_output: true
-  device: "cuda"
+  long_size: 1280           # keep equal to preprocessing.target_max_dim
+  nested_threshold: 0.8     # drop boxes >= 80% inside a larger box (comma/dot boxes)
 
 recognition:
   model_name: "VietOCR"
-  pretrained: true
-  inference_only: true
   backbone: "vgg_transformer"
+  beamsearch: false
   device: "cuda"
-  img_height: 32
-  img_width_min: 32
-  img_width_max: 512
+  batch_size: 32
 
 layout_encoder:
   model_name: "microsoft/layoutxlm-base"
-  pretrained: true
-  use_as: "feature_extractor"
-  task_specific_classifier: false
+  use_as: "feature_extractor"     # baseline; Week 4 adds a token-classification head (see plan)
   max_seq_length: 512
   coordinate_scale: 1000
+  save_fp16: true
   device: "cuda"
-
-unsupervised_extraction:
-  embedding_method: "layoutxlm_hidden_states"
-  clustering_algorithm: "hdbscan"
-  min_cluster_size: 3
-  use_geometry: true
-  use_text_patterns: true
-  use_row_alignment: true
-  validate_item_price_association: true
-  validate_total_with_arithmetic: true
-  return_uncertain_candidates: true

@@ -4,6 +4,10 @@ from src.common.bbox_utils import (
     denormalize_bbox,
     polygon_to_bbox,
     compute_iou,
+    xywh_to_xyxy,
+    xyxy_to_xywh,
+    polygon_to_xyxy,
+    contains_ratio,
 )
 
 __all__ = [
@@ -11,4 +15,8 @@ __all__ = [
     "denormalize_bbox",
     "polygon_to_bbox",
     "compute_iou",
+    "xywh_to_xyxy",
+    "xyxy_to_xywh",
+    "polygon_to_xyxy",
+    "contains_ratio",
 ]

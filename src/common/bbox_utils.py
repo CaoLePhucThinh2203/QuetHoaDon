@@ -1,4 +1,13 @@
-"""Geometry and bounding box manipulation utilities for OCR and LayoutXLM."""
+"""Geometry and bounding box manipulation utilities for OCR and LayoutXLM.
+
+Box conventions used across the repository
+------------------------------------------
+* ``xyxy``  = [x0, y0, x1, y1]  -> canonical *internal* format (pipeline, IoU, LayoutXLM).
+* ``xywh``  = [x, y, w, h]      -> format of the raw MC-OCR annotations (``anno_polygons.bbox``).
+
+Always convert MC-OCR boxes with :func:`xywh_to_xyxy` before comparing them with
+detector output; mixing the two formats silently produces wrong IoU values.
+"""
 from typing import List, Tuple, Union
 
 
@@ -118,3 +127,31 @@ def compute_iou(boxA: List[Union[int, float]], boxB: List[Union[int, float]]) ->
         return 0.0
 
     return inter_area / union_area
+
+
+def xywh_to_xyxy(box: List[Union[int, float]]) -> List[float]:
+    """[x, y, w, h] -> [x0, y0, x1, y1]."""
+    x, y, w, h = box
+    return [x, y, x + w, y + h]
+
+
+def xyxy_to_xywh(box: List[Union[int, float]]) -> List[float]:
+    """[x0, y0, x1, y1] -> [x, y, w, h]."""
+    x0, y0, x1, y1 = box
+    return [x0, y0, x1 - x0, y1 - y0]
+
+
+def polygon_to_xyxy(segmentation: List[Union[float, int, List]]) -> List[int]:
+    """Axis-aligned [x0, y0, x1, y1] box around a polygon (flat or nested)."""
+    x, y, w, h = polygon_to_bbox(segmentation)
+    return [x, y, x + w, y + h]
+
+
+def contains_ratio(inner: List[Union[int, float]], outer: List[Union[int, float]]) -> float:
+    """Fraction of ``inner``'s area that lies inside ``outer`` (both xyxy)."""
+    iw = min(inner[2], outer[2]) - max(inner[0], outer[0])
+    ih = min(inner[3], outer[3]) - max(inner[1], outer[1])
+    area = max(0.0, float(inner[2] - inner[0])) * max(0.0, float(inner[3] - inner[1]))
+    if iw <= 0 or ih <= 0 or area <= 0:
+        return 0.0
+    return float(iw * ih) / area
