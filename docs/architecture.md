@@ -1,89 +1,81 @@
 # System Architecture
 
-## 1. Purpose
+## 1. Scope
 
-The system receives a photographed or scanned receipt and extracts merchant identity/location, purchased item names, item prices, and the receipt total. The project follows an inference-first, unsupervised extraction strategy: no receipt-specific entity labels are used to train a task-specific extraction head.
+Input: one receipt photo. Output: structured JSON.
 
-## 2. End-to-end flow
+| Field | Ground truth in MC-OCR | How it is evaluated |
+| --- | --- | --- |
+| `SELLER`, `ADDRESS`, `TIMESTAMP`, `TOTAL_COST` | yes | field-level P/R/F1, exact match |
+| `ITEM_NAME`, `ITEM_PRICE`, `QUANTITY` | **no** | qualitative only (sampled receipts) |
+
+## 2. Pipeline
 
 ```mermaid
 flowchart LR
-    A["Receipt image"] --> B["Preprocessing: resize, color, denoise, deskew if needed"]
-    B --> C["CRAFT text detection"]
-    C --> D["Text polygons / bounding boxes"]
-    D --> E["Perspective rectification + crop"]
-    E --> F["VietOCR recognition"]
-    F --> G["OCR text + confidence + original bbox"]
-    G --> H["Reading-order and geometry preparation"]
-    H --> I["LayoutXLM pretrained encoder"]
-    I --> J["Contextual and layout embeddings"]
-    J --> K["Unsupervised grouping / clustering"]
-    K --> L["Semantic candidate assignment + consistency checks"]
-    L --> M["JSON with confidence and uncertainty"]
+    A[Image] --> B[ImagePreprocessor]
+    B --> C[CraftDetector]
+    C --> D[VietOCRRecognizer]
+    D --> E[LayoutXLMFeatureExtractor]
+    E --> F[Field extraction - Week 4]
+    F --> G[JSON]
 ```
 
-## 3. Stage responsibilities
+| Stage | Class (module) | Input -> output | Key parameters (`configs/model.yaml`) |
+| --- | --- | --- | --- |
+| 0 | `ImagePreprocessor` (`src/preprocessing/image_preprocessor.py`) | path -> resized / deskewed / enhanced BGR image, scale, skew angle | `target_max_dim=1280`, `enhance`, `max_skew=15` |
+| 1 | `CraftDetector` (`src/detection/craft_detector.py`) | image -> `TextRegion` list in reading order | `text_threshold=0.7`, `link_threshold=0.4`, `low_text=0.4`, `long_size=1280` |
+| 2 | `VietOCRRecognizer` (`src/recognition/vietocr_recognizer.py`) | regions -> `OcrItem` list (text + confidence) | `vgg_transformer`, `batch_size=32` |
+| 3 | `LayoutXLMFeatureExtractor` (`src/features/layoutxlm_extractor.py`) | OCR items + image -> hidden states `[1, 512, 768]` (+ visual tokens) | `max_seq_length=512`, fp16 storage |
+| 4 | not implemented | OCR items (+ features) -> fields | see section 5 |
 
-### Stage 0 — Image preparation
-Preserve the original image dimensions and coordinate frame. Apply only transformations needed for detection (for example, color conversion, resizing, or mild denoising). If the image is resized, retain scale factors so detected coordinates can be mapped back to the original image.
+`ReceiptPipeline` (`src/pipeline/runner.py`) runs stages 0-3 over many images, writes `<id>.json` and `<id>.pt`,
+records per-stage timing, resumes after interruptions and stops early on systematic failures.
 
-### Stage 1 — CRAFT text detection
-CRAFT identifies character/text regions and returns polygons. Convert polygons into crop regions, but retain the quadrilateral and axis-aligned box in original-image coordinates. Detection confidence is a region-level signal and must not be confused with OCR confidence.
+### Stage notes
 
-### Stage 2 — Rectification and VietOCR
-Use a perspective transform for rotated or skewed quadrilateral regions. Pass each rectified crop to pretrained VietOCR. Store:
-- recognized text;
-- OCR confidence, if exposed by the chosen implementation;
-- original polygon and bounding box;
-- crop identifier and detection score.
+- **Preprocessing.** Deskew uses a projection-profile search over ±15° and only rotates when the gain over 0° is
+  clear. After a rotation, `orig_bbox` (resize-only mapping) is no longer exact; use `bbox` on the processed image.
+- **CRAFT.** `craft-text-detector` breaks on modern NumPy when it returns polygons with different point counts
+  (`inhomogeneous shape`). `patch_craft_library()` forces 4-point boxes. `drop_nested()` removes the separate tiny
+  boxes CRAFT emits for the comma/dot inside amounts such as `27,000`, which otherwise become OCR garbage.
+- **Reading order.** Regions are grouped into lines by centre-y (tolerance = 0.5 × median height), then sorted left to right.
+- **VietOCR.** Batch inference with a per-crop fallback. `ocr_confidence` is VietOCR's sequence probability;
+  CRAFT in this library exposes no per-box score, so `detection_score` is `null`.
+- **LayoutXLM.** Words inherit a slice of their OCR region's box, proportional to word length; boxes are normalised
+  to [0, 1000]. Sequences longer than 512 tokens are truncated (`possibly_truncated` flag in the JSON).
 
-If VietOCR does not expose a calibrated confidence for a selected decoder, store `null`; do not fabricate one.
+## 3. Conventions and data contracts
 
-### Stage 3 — LayoutXLM feature extraction
-Normalize each box to the LayoutXLM coordinate range `[0, 1000]` using the original page width and height. Tokenize recognized text with the LayoutXLM tokenizer. For subword tokens, propagate the parent OCR region's bounding box. Run the pretrained LayoutXLM encoder and retain contextual hidden states.
+- Internal box format is **`xyxy`**. MC-OCR annotations are `xywh`; convert with `xywh_to_xyxy` before computing IoU.
+- OCR JSON (`<id>.json`): `file_id`, `orig_shape`, `processed_shape`, `scale_factor`, `skew_angle`, `n_detected`,
+  `n_text_regions`, `possibly_truncated`, `timing_sec`, `ocr_items[]` with
+  `region_id`, `reading_order`, `polygon`, `bbox`, `orig_bbox`, `text`, `ocr_confidence`, `detection_score`.
+- Features (`<id>.pt`): `last_hidden_state`, `input_ids`, `normalized_bboxes`, `attention_mask`, `words`, `file_id`.
+- Final field: `text`, `bbox`, `confidence` (only if meaningful), `status` in {`found`, `uncertain`, `not_found`}.
 
-In this project, LayoutXLM is a **feature extractor**, not a supervised BIO token classifier. Do not describe it as predicting `B-SELLER`, `I-SELLER`, or other entity tags unless a separately trained classification head is later introduced and the project scope is explicitly changed.
+## 4. Model architecture: LayoutXLM
 
-### Stage 4 — Unsupervised structure discovery
-Build features for each OCR region from:
-- LayoutXLM contextual representation;
-- normalized position, width, height, and center;
-- text shape (alphabetic, numeric, mixed);
-- amount/date pattern indicators;
-- alignment and distance to neighboring regions.
+LayoutXLM-base is a multilingual document Transformer: an XLM-RoBERTa-style text encoder (12 layers, hidden size
+768) whose input embeddings add 2D position embeddings (x0, y0, x1, y1, width, height from the [0, 1000] box) and
+whose self-attention uses spatial-aware biases; image patches from a CNN backbone are appended as visual tokens.
+In the baseline it is used as a frozen feature extractor. The improved model (Week 4, pending the team's decision in
+`reports/week4_plan.md`) adds a linear token-classification head over the text positions
+(`768 -> n_labels`, BIO tags for the four annotated fields) and fine-tunes the encoder with cross-entropy loss.
 
-Use clustering or similarity grouping to discover repeated structural roles and line-item rows. Candidate grouping is followed by semantic interpretation rules. Cluster IDs have no inherent meaning: cluster `2` does not intrinsically mean `TOTAL_COST`.
+## 5. Field extraction
 
-### Stage 5 — Candidate interpretation and validation
-Assign candidate roles using multiple signals, not position alone:
-- seller: merchant-like text in the header, potentially supported by business-name cues;
-- address/location: address-like text near merchant identity;
-- item name: text region in a repeated product-row structure;
-- item price: numeric/currency region aligned with an item row;
-- total: amount candidate in the summary/footer region, preferably near total-related wording.
+- **Baseline (rule-based, no training).** `TOTAL_COST`: amount candidate near total-related keywords in the lower
+  part of the receipt; `TIMESTAMP`: date/time regex; `SELLER`: header text; `ADDRESS`: address-like text near the seller.
+  Return alternatives and `uncertain` when evidence conflicts. LayoutXLM features can be clustered to report a
+  Silhouette score, but cluster ids carry no meaning on their own.
+- **Improved (fine-tuned token classifier).** Labels come from aligning OCR words to annotated regions by IoU; words
+  outside the four fields are `O`.
 
-Check arithmetic where quantities and prices are available, compare candidate totals, and preserve alternative candidates when evidence conflicts. Return `uncertain` rather than silently selecting a weak candidate.
+## 6. Limitations
 
-## 4. Data contracts
-
-A text region should carry at least:
-`region_id`, `polygon`, `bbox_xyxy`, `bbox_normalized`, `text`, `detection_score`, `ocr_confidence`, `reading_order`.
-
-A final extracted field should carry:
-`text`, `bbox`, `confidence` (only if meaningful scores are available), `status`, and optionally `alternatives`.
-
-Line items should preserve associations between name, quantity, and price. A price must not be attached to an item solely because it is the nearest number if row alignment is ambiguous.
-
-## 5. Unsupervised scope and limitations
-
-- The upstream CRAFT, VietOCR, and LayoutXLM weights are pretrained; their original training may have used supervised data.
-- This project does not fine-tune these models on MC-OCR entity labels.
-- LayoutXLM embeddings plus clustering do not provide guaranteed semantic entity extraction. Candidate interpretation is a separate algorithmic layer.
-- Receipt templates, languages, image quality, and OCR errors can change cluster behavior.
-- MC-OCR annotations must remain isolated from the unsupervised inference path. They can be used for final evaluation only, with evaluation results reported separately.
-
-## 6. Implementation status
-
-Implemented: bounding-box geometry utilities, abstract detector/recognizer contracts, MC-OCR annotation parsing for audit, extraction schema, configuration, and unit tests.
-
-Not established by the current repository alone: concrete CRAFT inference, VietOCR inference, perspective crop implementation, LayoutXLM feature extraction, unsupervised clustering, semantic assignment, end-to-end execution, or measured extraction performance.
+- OCR errors propagate to every later stage (detection → OCR → extraction).
+- A receipt contains subtotal, tax, cash, change and total: the largest number is not automatically the total.
+- Item names and prices can wrap across lines or columns.
+- VietOCR is Vietnamese-only; other languages need a different recogniser.
+- MC-OCR is biased toward chain stores and legible printed receipts.

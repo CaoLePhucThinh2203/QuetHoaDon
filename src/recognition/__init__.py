@@ -1,4 +1,7 @@
-"""Text recognition module interfaces and text decoders."""
-from src.recognition.recognizer import BaseTextRecognizer, TextRecognitionResult
+"""Text recognition: interface, OCR item structure and the VietOCR implementation.
 
-__all__ = ["BaseTextRecognizer", "TextRecognitionResult"]
+``VietOCRRecognizer`` is imported explicitly from ``src.recognition.vietocr_recognizer``.
+"""
+from src.recognition.recognizer import BaseTextRecognizer, OcrItem, TextRecognitionResult
+
+__all__ = ["BaseTextRecognizer", "OcrItem", "TextRecognitionResult"]

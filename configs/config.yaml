@@ -1,14 +1,22 @@
-project_name: "unsupervised-receipt-understanding"
-version: "0.2.0"
-environment: "kaggle"
+project_name: "quethoadon"
+version: "0.3.0"
 seed: 42
 
+# Pick the block that matches where you run. `output_dir` receives OCR JSON, features, failed.json.
 paths:
-  kaggle_input_dir: "/kaggle/input/vietnamese-receipts-mc-ocr-2021"
-  local_data_dir: "data/raw"
-  output_dir: "/kaggle/working/outputs"
-  cache_dir: "/kaggle/working/cache"
+  colab:
+    dataset_dir: "auto"                # resolved by kagglehub.dataset_download(...)
+    output_dir: "./pipeline_results"
+  kaggle:
+    dataset_dir: "/kaggle/input/vietnamese-receipts-mc-ocr-2021"
+    output_dir: "/kaggle/working/outputs"
+  local:
+    dataset_dir: "data/raw/mc-ocr-2021"
+    output_dir: "outputs"
 
+# Baseline = pretrained models + unsupervised extraction: labels are used only for evaluation.
+# Setting use_receipt_entity_labels_for_training to true (Week-4 "improved" model) is a team
+# decision - see reports/week4_plan.md, section 0.
 data_policy:
   use_receipt_entity_labels_for_training: false
   annotations_allowed_for: ["dataset_audit", "final_evaluation"]

@@ -1,7 +1,7 @@
-"""Canonical output fields for unsupervised receipt information extraction.
+"""Canonical output fields for receipt information extraction.
 
-These are semantic output keys, not BIO training labels. The project does not
-train a supervised token-classification head from receipt entity annotations.
+These are semantic output keys, not BIO training labels (the BIO tag set of the Week-4
+token classifier is derived from ``ANNOTATED_FIELDS``).
 """
 from enum import Enum
 from typing import Dict, List
@@ -31,6 +31,15 @@ OPTIONAL_OUTPUT_FIELDS: List[str] = [
 ]
 
 
+# The only fields MC-OCR annotates, hence the only ones that can be scored quantitatively.
+ANNOTATED_FIELDS: List[str] = [
+    TargetEntity.SELLER.value,
+    TargetEntity.ADDRESS.value,
+    TargetEntity.TIMESTAMP.value,
+    TargetEntity.TOTAL_COST.value,
+]
+
+
 def empty_field() -> Dict[str, object]:
     """Create an explicit empty extraction result; never invent a value."""
     return {
@@ -46,6 +55,7 @@ def empty_receipt_result() -> Dict[str, object]:
     return {
         "seller": empty_field(),
         "address": empty_field(),
+        "timestamp": empty_field(),
         "items": [],
         "total": empty_field(),
     }

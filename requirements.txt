@@ -1,26 +1,25 @@
-# Core Deep Learning & NLP
+# Runtime dependencies of the pipeline (Colab/Kaggle GPU). Install order matters - see notebooks/02_pipeline_colab.ipynb.
 torch>=2.0.0
 torchvision>=0.15.0
-transformers>=4.30.0
-datasets>=2.14.0
+transformers>=4.40.0
 sentencepiece>=0.1.99
-
-# Optical Character Recognition
-vietocr>=0.3.8
 opencv-python-headless>=4.7.0.72
 pillow>=9.5.0
-
-# Data Science & Utilities
 numpy>=1.24.0
 pandas>=2.0.0
 pyyaml>=6.0
-pydantic>=2.0.0
-tqdm>=4.65.0
 scikit-learn>=1.2.0
-seqeval>=1.2.2
+tqdm>=4.65.0
+matplotlib>=3.7.0
+kagglehub>=0.3.0
 
-# Testing & Quality
-pytest>=7.3.0
+# Installed WITHOUT dependencies (they pin old versions that conflict with torch/numpy):
+#   pip install craft-text-detector --no-deps
+#   pip install vietocr --no-deps
+#   pip install gdown einops prefetch_generator albumentations lmdb imgaug
+# LayoutXLM's visual backbone needs detectron2 (build from source, ~10 min on Colab):
+#   pip install ninja
+#   pip install 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation
 
-# Optional unsupervised density-based clustering
-hdbscan>=0.8.33
+# Week 4 (fine-tuning / evaluation) - uncomment when used:
+# seqeval>=1.2.2

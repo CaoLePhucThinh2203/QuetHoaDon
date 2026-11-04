@@ -1,275 +1,105 @@
 # QuetHoaDon
 
-A research prototype for understanding Vietnamese receipts and extracting structured information from receipt images. The project explores a pretrained computer-vision and document-understanding pipeline using CRAFT, VietOCR, and LayoutXLM, followed by unsupervised grouping and rule-based candidate validation.
+Vietnamese receipt understanding: read a receipt photo and extract structured information
+(seller, address, timestamp, total, and item lines) with a **CRAFT → VietOCR → LayoutXLM** pipeline.
 
-> **Project status:** The repository currently provides the project structure, configuration, documentation, annotation parser, utility functions, schemas, and unit tests. It does not yet contain a verified end-to-end inference pipeline. The models and processing stages described below are the intended architecture, not a claim that the complete system is already operational.
+> **Status (Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are implemented in
+> `src/` and run through `notebooks/02_pipeline_colab.ipynb`. **Field extraction is not implemented yet and no
+> model metrics have been measured.** Week 4 adds the baseline evaluation, the improved model and the error
+> analysis - see [`reports/week4_plan.md`](reports/week4_plan.md).
 
----
-
-## 📌 Project Overview
-
-Vietnamese receipts are often captured by mobile phones and may contain skew, perspective distortion, uneven lighting, faded text, and complex layouts. These conditions make it difficult to identify and associate information such as store names, item descriptions, prices, and the final amount.
-
-**QuetHoaDon** aims to process a receipt image and extract:
-
-- **`SELLER`**: Store or company name.
-- **`ADDRESS`**: Merchant address or location.
-- **`ITEM_NAME`**: Purchased item description.
-- **`ITEM_PRICE`**: Price associated with each item.
-- **`TOTAL_COST`**: Final receipt total.
-- **`QUANTITY`** _(optional)_: Item quantity, when it can be identified reliably.
-- **`TIMESTAMP`** _(optional)_: Transaction date and time, when available.
-
-The output is designed to preserve the original text, bounding boxes, confidence information when available, and uncertainty status. Ambiguous values should be marked for review instead of being silently treated as correct.
-
----
-
-## 🏗️ System Architecture
-
-The proposed processing pipeline contains five main stages:
+## Pipeline
 
 ```mermaid
 flowchart LR
-    A["Receipt Image"] --> B["Image Preprocessing"]
-    B --> C["Stage 1: CRAFT Text Detection"]
-    C --> D["Polygon Rectification and Cropping"]
-    D --> E["Stage 2: VietOCR Text Recognition"]
-    E --> F["OCR Text + Bounding Boxes"]
-    F --> G["Stage 3: LayoutXLM Feature Extraction"]
-    G --> H["Unsupervised Grouping and Clustering"]
-    H --> I["Semantic Candidate Assignment"]
-    I --> J["Spatial, Textual and Arithmetic Validation"]
-    J --> K["Structured JSON + Uncertainty Status"]
+    A[Receipt image] --> B[Stage 0: resize / deskew / enhance]
+    B --> C[Stage 1: CRAFT detection]
+    C --> D[Stage 2: VietOCR recognition]
+    D --> E[Stage 3: LayoutXLM features]
+    E --> F[Stage 4: field extraction - Week 4]
+    F --> G[JSON: SELLER, ADDRESS, TIMESTAMP, TOTAL_COST, items]
 ```
 
-### Stage 0 — Image Preprocessing
+| Stage | Module | Status |
+| --- | --- | --- |
+| 0 Preprocessing | `src/preprocessing/image_preprocessor.py` | implemented, unit-tested |
+| 1 Detection (CRAFT) | `src/detection/` | implemented; logic unit-tested, model call verified on Colab only |
+| 2 OCR (VietOCR) | `src/recognition/` | implemented; logic unit-tested, model call verified on Colab only |
+| 3 Features (LayoutXLM) | `src/features/` | implemented, not unit-tested end to end |
+| 4 Field extraction | - | **not implemented** (Week 4) |
+| Evaluation metrics | `src/evaluation/` | implemented, unit-tested; not yet run on real predictions |
 
-Prepare the input receipt image for text detection. Depending on image quality, preprocessing may include resizing, color conversion, denoising, and deskewing. Original image dimensions and coordinate information should be retained so that detected regions can be mapped back to the source image.
+Details: [`docs/architecture.md`](docs/architecture.md). Dataset facts and caveats: [`docs/dataset.md`](docs/dataset.md).
 
-### Stage 1 — CRAFT Text Detection
-
-CRAFT is used as a pretrained text detector to locate text regions in the receipt image. It returns polygons or bounding boxes around text.
-
-The detected coordinates and detection scores should be preserved for later processing.
-
-### Stage 2 — VietOCR Text Recognition
-
-Detected text regions are cropped and rectified where necessary. The pretrained VietOCR model then converts each crop into Vietnamese text while preserving Vietnamese diacritics.
-
-Each recognized text region should remain associated with its original bounding box and detection information. Detection confidence and OCR confidence are separate signals.
-
-### Stage 3 — LayoutXLM Feature Extraction
-
-LayoutXLM receives recognized text together with normalized 2D bounding boxes. Its pretrained hidden representations are used as contextual and layout-aware features.
-
-In this project, LayoutXLM is intended to act as a **feature extractor**, not as a ready-made entity classifier. The project does not currently define a supervised BIO token-classification head trained on receipt entity labels.
-
-### Stage 4 — Unsupervised Grouping and Information Extraction
-
-Text regions are grouped using multiple signals:
-
-- LayoutXLM contextual representations.
-- Normalized bounding-box coordinates and spatial relationships.
-- Text patterns, such as alphabetic, numeric, and currency-like content.
-- Alignment of text regions into rows and columns.
-- Relationships between nearby text regions.
-
-The system then identifies possible seller names, addresses, item descriptions, item prices, and total amounts. Arithmetic and layout checks can help validate item-price associations and total candidates.
-
-Clustering by itself does not assign meanings such as `SELLER` or `TOTAL_COST`. A separate candidate-interpretation step is required. If multiple candidates conflict or the evidence is weak, the result should retain an uncertainty status.
-
----
-
-## 🧠 Unsupervised Learning Approach
-
-The project follows an **inference-first, unsupervised extraction strategy**.
-
-This means that receipt-specific ground-truth entity labels are not used to train or fine-tune a task-specific extraction classifier.
-
-The project uses pretrained components:
-
-- CRAFT for text detection.
-- VietOCR for text recognition.
-- LayoutXLM for contextual and layout-aware feature extraction.
-
-These pretrained models may have been trained using supervised data by their original developers. Using their pretrained weights for inference or feature extraction does not mean that the project trains its own receipt extraction model with labeled receipt entities.
-
-**Important:** LayoutXLM embeddings and clustering do not automatically identify the semantic meaning of a text region. Semantic candidate assignment must be implemented as a separate step using spatial information, text patterns, structural relationships, and consistency checks.
-
----
-
-## 📊 Dataset
-
-### MC-OCR 2021 — Primary Dataset
-
-The project currently identifies **MC-OCR 2021** as its primary Vietnamese receipt dataset.
-
-- **Dataset:** MC-OCR 2021.
-- **Language:** Vietnamese.
-- **Purpose:** Dataset inspection, annotation auditing, and final evaluation.
-- **Kaggle source:** [`domixi1989/vietnamese-receipts-mc-ocr-2021`](https://www.kaggle.com/datasets/domixi1989/vietnamese-receipts-mc-ocr-2021).
-
-The dataset contains receipt images and annotations. In accordance with the project's unsupervised approach, entity labels are reserved for dataset auditing and final evaluation. They must not be used to train the extraction model or to tune the inference pipeline while claiming an unsupervised experiment.
-
-The dataset's availability, exact file counts, and split sizes should be verified in the environment where the experiment is run. No dataset statistics or model performance are claimed by this README.
-
-### Planned Dataset Integrations
-
-| Dataset     | Language   | Status          |
-| ----------- | ---------- | --------------- |
-| MC-OCR 2021 | Vietnamese | Primary dataset |
-| SROIE 2019  | English    | Planned         |
-| CORD        | Indonesian | Planned         |
-
-SROIE and CORD are future integration candidates. Their availability or evaluation is not implied by their presence in the configuration. Different languages may require suitable OCR recognition models.
-
-For more information, see [Dataset Documentation](docs/dataset_documentation.md) and [Multi-Dataset Architecture](docs/multi_dataset_architecture.md).
-
----
-
-## 📂 Repository Structure
+## Repository structure
 
 ```text
 QuetHoaDon/
 ├── README.md
-├── requirements.txt
-├── .gitignore
-│
+├── requirements.txt            # runtime (Colab/Kaggle GPU)
+├── requirements-dev.txt        # light deps: enough to run all unit tests / CI
 ├── configs/
-│   ├── config.yaml              # Runtime paths and data policy
-│   ├── dataset.yaml             # Dataset settings and extraction fields
-│   └── model.yaml               # Pretrained model and extraction settings
-│
+│   ├── config.yaml             # paths per environment, seed, data policy
+│   ├── dataset.yaml            # MC-OCR files, annotated fields, split
+│   └── model.yaml              # preprocessing / CRAFT / VietOCR / LayoutXLM parameters
 ├── docs/
-│   ├── architecture.md          # System architecture and processing stages
-│   ├── dataset_documentation.md # Dataset usage and annotation policy
-│   ├── multi_dataset_architecture.md
-│   └── preprocessing.md         # Preprocessing and coordinate handling
-│
+│   ├── architecture.md         # pipeline, data contracts, model architecture, limits
+│   └── dataset.md              # MC-OCR facts, split, data-use policy
 ├── notebooks/
-│   └── kaggle/
-│       └── 01_mc_ocr_eda.ipynb  # MC-OCR exploratory data analysis
-│
+│   ├── 01_mc_ocr_eda.ipynb     # dataset audit (run it and keep the outputs)
+│   └── 02_pipeline_colab.ipynb # thin runner: install -> build pipeline -> smoke test -> full run
 ├── reports/
-│   ├── project_leader_handover.md
-│   └── week3_progress_report.md
-│
+│   ├── week3_progress_report.md  # what is done / missing, repo audit, model assessment
+│   └── week4_plan.md             # tasks, owners, metrics, deliverables for Week 4
+├── scripts/
+│   └── prepare_dataset.py      # manifests + invoice-level train/val/test split
 ├── src/
-│   ├── common/
-│   │   └── bbox_utils.py        # Bounding-box and geometry utilities
-│   ├── detection/
-│   │   └── detector.py          # Text detector interface
-│   ├── extraction/
-│   │   └── schema.py            # Structured extraction schema
-│   ├── preprocessing/
-│   │   └── annotation_parser.py # MC-OCR annotation parser
-│   └── recognition/
-│       └── recognizer.py        # Text recognizer interface
-│
-└── tests/
-    ├── test_annotation_parser.py
-    ├── test_bbox_utils.py
-    └── test_schema.py
+│   ├── common/                 # bbox utilities, config loader
+│   ├── preprocessing/          # annotation_parser, dataset_preparer, image_preprocessor
+│   ├── detection/              # interface, post-processing, CRAFT detector
+│   ├── recognition/            # interface, OCR item, VietOCR recognizer
+│   ├── features/               # LayoutXLM feature extractor
+│   ├── extraction/             # output schema
+│   ├── evaluation/             # CER/WER, detection P/R, field-level P/R/F1, amount normalisation
+│   └── pipeline/               # ReceiptPipeline: batch run, resume, early stop
+├── tests/                      # 60+ unit tests (no GPU needed)
+└── .github/workflows/tests.yml # CI: runs the unit tests on every push / PR
 ```
 
----
+## Quickstart
 
-## 🚀 Quickstart & Setup
-
-### 1. Local Environment Setup (Lightweight)
-
-Clone the repository and install core dependencies:
+**Unit tests (laptop, no GPU):**
 
 ```bash
-git clone https://github.com/CaoLePhucThinh2203/QuetHoaDon.git
-cd QuetHoaDon
-
-# Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -t . -v
 ```
 
-### 2. Running Unit Tests
-
-Run the full automated test suite:
+**Dataset manifests and splits:**
 
 ```bash
-python3 -m unittest discover -s tests -v
+python scripts/prepare_dataset.py --csv <dataset>/mcocr_train_df.csv \
+    --images <dataset>/train_images/train_images --out outputs/dataset
 ```
 
-### 3. Kaggle EDA Workflow
+**Run the pipeline (Colab, GPU):** open `notebooks/02_pipeline_colab.ipynb`, run the install cells, then the
+*smoke test* (5 images) **before** the full run. The runner resumes after a disconnect and stops early if more
+than half of the first images fail.
 
-Dataset exploration and data-quality checks are performed on Kaggle:
+## Evaluation (what MC-OCR can and cannot measure)
 
-1. Open [Kaggle Notebooks](https://www.kaggle.com/code).
-2. Create a new notebook and click **Add Input** in the right-hand panel.
-3. Search and attach the dataset: **`domixi1989/vietnamese-receipts-mc-ocr-2021`**.
-4. Import and execute `notebooks/kaggle/01_mc_ocr_eda.ipynb`.
-5. The notebook automatically detects dataset paths, validates annotations, displays sample visualizations, and exports `mc_ocr_data_quality_report.json` to `/kaggle/working/`.
+MC-OCR annotates only `SELLER`, `ADDRESS`, `TIMESTAMP`, `TOTAL_COST`. Therefore:
 
----
+- field-level P/R/F1 and exact match: the four annotated fields only;
+- detection **recall** on annotated regions (precision is not measurable - unannotated text would count as false positives);
+- CER/WER on regions matched to an annotation;
+- `ITEM_NAME`, `ITEM_PRICE`, `QUANTITY` have no ground truth: qualitative evaluation only.
 
-## 🧪 Evaluation Plan
+## Team
 
-After the complete pipeline is implemented, evaluate its stages separately:
-
-| Component            | Suggested evaluation                                 |
-| -------------------- | ---------------------------------------------------- |
-| Text detection       | Precision, recall, and IoU-based matching            |
-| Text recognition     | Character Error Rate (CER) and Word Error Rate (WER) |
-| Field extraction     | Precision, recall, and F1-score for each field       |
-| Item extraction      | Item-name and item-price association accuracy        |
-| Total extraction     | Exact match or normalized amount accuracy            |
-| End-to-end system    | Receipt-level extraction accuracy                    |
-| Uncertainty handling | Coverage and uncertain-result rate                   |
-
-MC-OCR annotations should only be used for final evaluation after the inference pipeline and its thresholds have been fixed. Evaluation results should be reported separately and should not be presented as training results.
-
----
-
-## ⚠️ Current Implementation Status
-
-The current repository contains:
-
-- Bounding-box conversion, normalization, denormalization, and IoU utility functions.
-- Abstract interfaces for text detection and text recognition.
-- An MC-OCR annotation parser for dataset auditing and evaluation.
-- A structured extraction schema.
-- YAML configuration files for datasets, runtime settings, and model components.
-- Unit tests for geometry utilities, annotation parsing, and schema behavior.
-- Architecture, dataset, preprocessing, and project progress documentation.
-
-The following parts are **not yet verified as implemented end to end**:
-
-- Concrete CRAFT model loading and inference.
-- Polygon perspective rectification and text-crop generation.
-- Concrete VietOCR model loading and inference.
-- LayoutXLM tokenizer and encoder inference.
-- Unsupervised feature construction and clustering.
-- Semantic candidate assignment for receipt fields.
-- Item-name and item-price association.
-- Arithmetic validation and uncertainty resolution.
-- End-to-end JSON export and evaluation.
-
-The README describes the intended system design. Update this section as implementation and testing progress.
-
----
-
-## 📚 Documentation
-
-- [System Architecture](docs/architecture.md)
-- [Dataset Documentation](docs/dataset_documentation.md)
-- [Multi-Dataset Architecture](docs/multi_dataset_architecture.md)
-- [Preprocessing](docs/preprocessing.md)
-- [Week 3 Progress Report](reports/week3_progress_report.md)
-- [Project Leader Handover](reports/project_leader_handover.md)
-
----
-
-## 👥 Team
-
-| #   | Full name           | Student ID |            
-| --- | ------------------- | -----------| 
-| 1   | Dam Huynh Hoai Nam  | 24090022   |
-| 2   | Cao Le Phuc Thinh   | 24090024   |
-| 3   | Dau Tuan Loc        | 24090025   |
-| 4   | Truong Dinh Nhien   | 24090060   |
+| # | Full name | Student ID |
+| --- | --- | --- |
+| 1 | Dam Huynh Hoai Nam | 24090022 |
+| 2 | Cao Le Phuc Thinh | 24090024 |
+| 3 | Dau Tuan Loc | 24090025 |
+| 4 | Truong Dinh Nhien | 24090060 |

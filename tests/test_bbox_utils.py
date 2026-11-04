@@ -1,6 +1,7 @@
 """Unit tests for geometry and bounding box manipulation utilities."""
 import unittest
 
+from src.common.bbox_utils import xywh_to_xyxy, xyxy_to_xywh, polygon_to_xyxy, contains_ratio
 from src.common.bbox_utils import (
     compute_iou,
     denormalize_bbox,
@@ -63,6 +64,21 @@ class TestBboxUtils(unittest.TestCase):
         boxA = [0, 0, 20, 20]  # area = 400
         boxB = [10, 0, 30, 20]  # area = 400, intersection = 10*20 = 200, union = 600
         self.assertAlmostEqual(compute_iou(boxA, boxB), 200.0 / 600.0)
+
+
+
+class TestBoxFormats(unittest.TestCase):
+    def test_xywh_xyxy_roundtrip(self):
+        self.assertEqual(xywh_to_xyxy([10, 20, 30, 40]), [10, 20, 40, 60])
+        self.assertEqual(xyxy_to_xywh([10, 20, 40, 60]), [10, 20, 30, 40])
+
+    def test_polygon_to_xyxy(self):
+        self.assertEqual(polygon_to_xyxy([0, 0, 10, 0, 10, 5, 0, 5]), [0, 0, 10, 5])
+
+    def test_contains_ratio(self):
+        self.assertAlmostEqual(contains_ratio([2, 2, 4, 4], [0, 0, 10, 10]), 1.0)
+        self.assertAlmostEqual(contains_ratio([0, 0, 10, 10], [0, 0, 5, 10]), 0.5)
+        self.assertEqual(contains_ratio([0, 0, 1, 1], [5, 5, 6, 6]), 0.0)
 
 
 if __name__ == "__main__":
