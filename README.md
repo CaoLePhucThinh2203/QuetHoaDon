@@ -3,10 +3,27 @@
 Vietnamese receipt understanding: read a receipt photo and extract structured information
 (seller, address, timestamp, total, and item lines) with a **CRAFT → VietOCR → LayoutXLM** pipeline.
 
-> **Status (Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are implemented in
-> `src/` and run through `notebooks/02_pipeline_colab.ipynb`. **Field extraction is not implemented yet and no
-> model metrics have been measured.** Week 4 adds the baseline evaluation, the improved model and the error
-> analysis - see [`reports/week4_plan.md`](reports/week4_plan.md).
+> **Status (08/11/2026, Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are
+> implemented in `src/` and run through `notebooks/02_pipeline_colab.ipynb`. **Field extraction is not in `src/`
+> yet and no model has been trained in the repo.** A separate Colab notebook (not yet in the repo) ran OCR on all
+> 1044 images and gave first baseline numbers (rules + logistic regression: total amount exactly right on 32 % of
+> test receipts). Latest status and proposed direction: [`reports/project_status.md`](reports/project_status.md);
+> Week 4 tasks: [`reports/week4_plan.md`](reports/week4_plan.md).
+
+## Problem statement
+
+Entering expenses by hand is slow and error-prone, so many people give up tracking their spending. This project
+builds an AI pipeline that combines OCR and Key Information Extraction to read photos of Vietnamese retail receipts,
+extract the seller, address, date and total, and assign the receipt to a spending category
+(food / move / study / shop / other) for the FinBud app.
+
+## Research questions
+
+- **RQ1 (Robustness):** How much do image preprocessing (denoising, lighting/contrast correction) and data
+  augmentation improve text recognition on blurred, wrinkled or poorly lit receipts?
+- **RQ2 (Extraction & classification):** Which model architecture extracts the total amount most accurately and
+  best assigns receipts to standard spending categories?
+- **RQ3 (Efficiency & latency):** What is the trade-off between accuracy and response time across the compared models?
 
 ## Pipeline
 
@@ -49,6 +66,7 @@ QuetHoaDon/
 │   ├── 01_mc_ocr_eda.ipynb     # dataset audit (run it and keep the outputs)
 │   └── 02_pipeline_colab.ipynb # thin runner: install -> build pipeline -> smoke test -> full run
 ├── reports/
+│   ├── project_status.md         # latest status, baseline numbers, proposed direction
 │   ├── week3_progress_report.md  # what is done / missing, repo audit, model assessment
 │   └── week4_plan.md             # tasks, owners, metrics, deliverables for Week 4
 ├── scripts/
@@ -68,12 +86,14 @@ QuetHoaDon/
 
 ## Quickstart
 
-**Unit tests (laptop, no GPU):**
+**Unit tests (laptop or Colab, no GPU):**
 
 ```bash
 pip install -r requirements-dev.txt
 python -m unittest discover -s tests -t . -v
 ```
+
+On Colab, clone the repo, `%cd QuetHoaDon`, and prefix both commands with `!`.
 
 **Dataset manifests and splits:**
 
