@@ -1,5 +1,8 @@
 # Kế hoạch Tuần 4 — Model Development & Evaluation
 
+> **Cập nhật 08/11/2026:** đã có số baseline đầu tiên từ notebook DesignThinking, và đề xuất tách M1 thành M1a
+> (LayoutXLM đóng băng + head) và M1b (fine-tune, chính là M1 dưới đây). Xem [`project_status.md`](project_status.md).
+
 **Đầu ra Tuần 4:** *một model đã huấn luyện, đã đánh giá, và lộ trình cải tiến rõ ràng.*
 
 ## 0. Quyết định cần chốt ngay ngày 1 (30 phút họp)
