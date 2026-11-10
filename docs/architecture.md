@@ -11,15 +11,7 @@ Input: one receipt photo. Output: structured JSON.
 
 ## 2. Pipeline
 
-```mermaid
-flowchart LR
-    A[Image] --> B[ImagePreprocessor]
-    B --> C[CraftDetector]
-    C --> D[VietOCRRecognizer]
-    D --> E[LayoutXLMFeatureExtractor]
-    E --> F[Field extraction - Week 4]
-    F --> G[JSON]
-```
+![Pipeline architecture](../assets/pipeline_architecture.png)
 
 | Stage | Class (module) | Input -> output | Key parameters (`configs/model.yaml`) |
 | --- | --- | --- | --- |
@@ -29,8 +21,11 @@ flowchart LR
 | 3 | `LayoutXLMFeatureExtractor` (`src/features/layoutxlm_extractor.py`) | OCR items + image -> hidden states `[1, 512, 768]` (+ visual tokens) | `max_seq_length=512`, fp16 storage |
 | 4 | not implemented | OCR items (+ features) -> fields | see section 5 |
 
-`ReceiptPipeline` (`src/pipeline/runner.py`) runs stages 0-3 over many images, writes `<id>.json` and `<id>.pt`,
-records per-stage timing, resumes after interruptions and stops early on systematic failures.
+`ReceiptPipeline` (`src/pipeline/runner.py`) runs the stages:
+
+- `predict(image)` - one image in memory, returns the OCR result dict (used by `scripts/run_pipeline.py`);
+- `run(paths)` - a whole dataset: writes `<id>.json` and `<id>.pt`, records per-stage timing, resumes after
+  interruptions and stops early on systematic failures (used by `notebooks/02_pipeline_colab.ipynb`).
 
 ### Stage notes
 
@@ -62,7 +57,7 @@ whose self-attention uses spatial-aware biases; image patches from a CNN backbon
 The team decided to **fine-tune** it (supervised). `LayoutLMv2ForTokenClassification` loaded from
 `microsoft/layoutxlm-base` adds a linear token-classification head over the text positions (`768 -> 9`: `O` plus
 `B-`/`I-` tags for the four annotated fields) and trains the whole encoder with cross-entropy loss. A frozen-encoder
-variant (M1a, head only) is kept as an ablation. See `reports/project_plan.md` for the full list of models and experiments.
+variant (M1a, head only) is kept as an ablation. See `docs/reports/project_plan.md` for the full list of models and experiments.
 
 ## 5. Field extraction
 
