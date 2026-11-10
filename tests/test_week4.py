@@ -78,6 +78,14 @@ class TestRules(unittest.TestCase):
         self.assertEqual(fe.normalize_date("Ngày bân: 13/08/2 2020 10: 19"), "13/08/2020")
         self.assertEqual(fe.normalize_date("14/08/2020 08:29"), "14/08/2020")
 
+    def test_gold_region_with_the_amount_written_twice(self):
+        from src.evaluation.metrics import field_match, gold_amounts
+        self.assertEqual(fe.gt_amount(["27,000 27,000"]), 27000)
+        self.assertTrue(field_match("TOTAL_COST", "27,000", ["27,000 27,000"]))
+        self.assertTrue(field_match("TOTAL_COST", "74,000", ["Tổng cộng", "74,000"]))
+        self.assertFalse(field_match("TOTAL_COST", "75,000", ["27,000 27,000"]))
+        self.assertIn(46000, gold_amounts(["46,000 46,000"]))
+
     def test_gt_amount_ignores_barcodes(self):
         self.assertEqual(fe.gt_amount(["Tong", "74,000", "0902543800123"]), 74000)
         self.assertIsNone(fe.gt_amount(["0902543800123"]))

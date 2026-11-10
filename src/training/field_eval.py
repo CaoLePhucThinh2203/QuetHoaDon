@@ -15,7 +15,8 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from src.evaluation.metrics import FIELDS, cer, field_match, field_scores, normalize_amount, normalize_text, prf1
+from src.evaluation.metrics import (FIELDS, cer, field_match, field_scores, gold_amounts, normalize_amount,
+                                    normalize_text, prf1)
 from src.extraction.decode import amount_candidates, predict_fields
 from src.extraction.rules import DATE_SPLIT_RE, fill_missing
 from src.preprocessing.token_dataset import ID2LABEL, LABEL2ID, LABELS
@@ -45,8 +46,7 @@ def gold_fields(records: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, List[s
 
 def gt_amount(texts: Optional[Sequence[str]]) -> Optional[int]:
     """The annotated total: the largest amount among the TOTAL_COST region texts (the label text has none)."""
-    amounts = [normalize_amount(t) for t in (texts or [])]
-    amounts = [a for a in amounts if a and PLAUSIBLE_MIN <= a <= PLAUSIBLE_MAX]    # barcodes / phone numbers are not totals
+    amounts = [a for a in gold_amounts(texts) if a and PLAUSIBLE_MIN <= a <= PLAUSIBLE_MAX]   # barcodes are not totals
     return max(amounts) if amounts else None
 
 
