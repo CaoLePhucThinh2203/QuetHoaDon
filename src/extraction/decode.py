@@ -10,8 +10,9 @@ Policy (tune on validation, never on test)
   entity usually contains a few words; only the numeric one is returned.
 """
 import re
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from src.evaluation.metrics import normalize_amount
 from src.extraction.schema import ANNOTATED_FIELDS
 
 _SEP_AMOUNT = re.compile(r"^\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?$")
@@ -81,6 +82,21 @@ def pick_amount(words: Sequence[str]) -> Optional[str]:
         i += 1
     pool = separated or plain
     return pool[-1] if pool else None
+
+
+def parse_amount_token(token: str, min_value: int = 1000, max_value: int = 500_000_000) -> Optional[Tuple[str, int]]:
+    """``(cleaned text, value in VND)`` when ``token`` looks like a plausible receipt amount, else ``None``.
+
+    Accepts ``74,000`` / ``1.250.000`` style tokens and bare 4-7 digit numbers; rejects phone numbers, codes and
+    values outside ``[min_value, max_value]`` (these produced absurd totals when the model mislabelled them).
+    """
+    t = _clean_amount_token(token)
+    if not (_SEP_AMOUNT.match(t) or re.fullmatch(r"\d{4,7}", t)):
+        return None
+    value = normalize_amount(t)
+    if value is None or not (min_value <= value <= max_value):
+        return None
+    return t, value
 
 
 def assemble_fields(entities: Sequence[Dict[str, Any]]) -> Dict[str, Optional[str]]:
