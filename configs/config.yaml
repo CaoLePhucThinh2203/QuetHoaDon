@@ -14,12 +14,12 @@ paths:
     dataset_dir: "data/raw/mc-ocr-2021"
     output_dir: "outputs"
 
-# Baseline = pretrained models + unsupervised extraction: labels are used only for evaluation.
-# Setting use_receipt_entity_labels_for_training to true (Week-4 "improved" model) is a team
-# decision - see reports/week4_plan.md, section 0.
+# Team decision (Nov 2026): the extraction model (fine-tuned LayoutXLM) is SUPERVISED.
+# Entity labels train it on the train split only; hyper-parameters are chosen on validation;
+# the test split is scored once at the end. Inference never reads annotations.
 data_policy:
-  use_receipt_entity_labels_for_training: false
-  annotations_allowed_for: ["dataset_audit", "final_evaluation"]
+  use_receipt_entity_labels_for_training: true
+  annotations_allowed_for: ["dataset_audit", "training_on_train_split", "model_selection_on_validation", "final_evaluation_on_test"]
   inference_reads_annotations: false
 
 logging:

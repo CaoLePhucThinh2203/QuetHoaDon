@@ -3,12 +3,11 @@
 Vietnamese receipt understanding: read a receipt photo and extract structured information
 (seller, address, timestamp, total, and item lines) with a **CRAFT → VietOCR → LayoutXLM** pipeline.
 
-> **Status (08/11/2026, Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are
-> implemented in `src/` and run through `notebooks/02_pipeline_colab.ipynb`. **Field extraction is not in `src/`
-> yet and no model has been trained in the repo.** A separate Colab notebook (not yet in the repo) ran OCR on all
-> 1044 images and gave first baseline numbers (rules + logistic regression: total amount exactly right on 32 % of
-> test receipts). Latest status and proposed direction: [`reports/project_status.md`](reports/project_status.md);
-> Week 4 tasks: [`reports/week4_plan.md`](reports/week4_plan.md).
+> **Status (10/11/2026, Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are
+> implemented in `src/` and run through `notebooks/02_pipeline_colab.ipynb`. The team chose a **supervised** extraction
+> model: fine-tuned LayoutXLM token classification. The label-mapping and token-dataset code is being added; **no model
+> has been trained in the repo yet and no metrics have been measured.** Full task list:
+> [`reports/project_plan.md`](reports/project_plan.md); latest status: [`reports/project_status.md`](reports/project_status.md).
 
 ## Problem statement
 
@@ -61,7 +60,8 @@ QuetHoaDon/
 │   └── model.yaml              # preprocessing / CRAFT / VietOCR / LayoutXLM parameters
 ├── docs/
 │   ├── architecture.md         # pipeline, data contracts, model architecture, limits
-│   └── dataset.md              # MC-OCR facts, split, data-use policy
+│   ├── dataset.md              # MC-OCR facts, split, data-use policy
+│   └── archive/                # documents of the earlier unsupervised direction (history only)
 ├── notebooks/
 │   ├── 01_mc_ocr_eda.ipynb     # dataset audit (run it and keep the outputs)
 │   └── 02_pipeline_colab.ipynb # thin runner: install -> build pipeline -> smoke test -> full run
@@ -71,14 +71,15 @@ QuetHoaDon/
 │   ├── week3_progress_report.md  # what is done / missing, repo audit, model assessment
 │   └── week4_plan.md             # tasks, owners, metrics, deliverables for Week 4
 ├── scripts/
-│   └── prepare_dataset.py      # manifests + invoice-level train/val/test split
+│   ├── prepare_dataset.py      # manifests + invoice-level train/val/test split
+│   └── build_token_dataset.py  # OCR JSON + annotations -> BIO token dataset (.jsonl) + label-coverage report
 ├── src/
 │   ├── common/                 # bbox utilities, config loader
-│   ├── preprocessing/          # annotation_parser, dataset_preparer, image_preprocessor
+│   ├── preprocessing/          # annotation_parser, dataset_preparer, image_preprocessor, token_dataset
 │   ├── detection/              # interface, post-processing, CRAFT detector
 │   ├── recognition/            # interface, OCR item, VietOCR recognizer
 │   ├── features/               # LayoutXLM feature extractor
-│   ├── extraction/             # output schema
+│   ├── extraction/             # output schema, BIO decoding into field values
 │   ├── evaluation/             # CER/WER, detection P/R, field-level P/R/F1, amount normalisation
 │   └── pipeline/               # ReceiptPipeline: batch run, resume, early stop
 ├── tests/                      # 60+ unit tests (no GPU needed)

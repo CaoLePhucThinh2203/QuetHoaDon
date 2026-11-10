@@ -1,7 +1,9 @@
 # Kế hoạch Tuần 4 — Model Development & Evaluation
 
-> **Cập nhật 08/11/2026:** đã có số baseline đầu tiên từ notebook DesignThinking, và đề xuất tách M1 thành M1a
-> (LayoutXLM đóng băng + head) và M1b (fine-tune, chính là M1 dưới đây). Xem [`project_status.md`](project_status.md).
+> **Cập nhật 10/11/2026:** nhóm chọn **phương án B** (fine-tune LayoutXLM, có giám sát) và bỏ notebook DesignThinking.
+> Baseline B0 chính là pipeline Tuần 3 (đặc trưng LayoutXLM đóng băng, phân cụm, gán cụm vào trường kèm luật). M1 dưới đây
+> gọi là M1b; M1a (LayoutXLM đóng băng, chỉ train head) là thí nghiệm đối chứng. Danh sách task đầy đủ và bảng khớp với
+> docx: [`project_plan.md`](project_plan.md); nếu mâu thuẫn thì theo file đó.
 
 **Đầu ra Tuần 4:** *một model đã huấn luyện, đã đánh giá, và lộ trình cải tiến rõ ràng.*
 
@@ -47,20 +49,21 @@ Sau khi chốt: cập nhật `configs/config.yaml` (`data_policy`), `README.md`,
 | Recall @ IoU 0.5 | CRAFT | dùng `xywh_to_xyxy` cho nhãn MC-OCR |
 | CER, WER | VietOCR | `corpus_error_rate`, không lấy trung bình của tỉ lệ |
 | Thời gian / ảnh theo từng stage | toàn pipeline (RQ3) | đã có `timing_sec` trong JSON |
-| Silhouette | clustering LayoutXLM (chỉ nếu giữ ý Tuần 3) | chỉ để phân tích |
-| Accuracy | — | **không dùng ở cấp token**: nhãn `O` chiếm đa số nên accuracy cao nhưng vô nghĩa |
-| RMSE, AUC | — | không phù hợp bài toán gán nhãn chuỗi; nếu rubric bắt buộc, nêu lý do không áp dụng trong báo cáo |
+| Silhouette | B0 (LayoutXLM đóng băng + phân cụm) | chỉ số baseline theo docx Tuần 3 |
+| Accuracy | cấp hóa đơn: đúng tổng tiền, khớp toàn hóa đơn | không dùng ở cấp token vì nhãn `O` chiếm đa số nên accuracy cao nhưng vô nghĩa |
+| RMSE, MAE | sai số số tiền tổng (VND) | yêu cầu Tuần 4; báo cả MAE vì lỗi OCR tạo ngoại lệ lớn |
+| ROC-AUC | từng nhãn, từ xác suất token | yêu cầu Tuần 4; nêu rõ AUC đo khả năng xếp hạng của token chứ không đo chất lượng thực thể |
 
 ## 3. Thiết kế thí nghiệm
 
 | Mã | Mô hình | Huấn luyện | Dùng để |
 | --- | --- | --- | --- |
-| **B0** | Pipeline hiện tại + luật trích xuất | không | baseline |
+| **B0** | Pipeline Tuần 3: đặc trưng LayoutXLM đóng băng, phân cụm, gán cụm vào trường + luật | không có gradient | baseline |
 | **M1** | Pipeline + LayoutXLM + head phân loại token, fine-tune | train split | improved |
 | Ablation RQ1 | B0 với `enhance` bật/tắt; deskew bật/tắt | không | trả lời RQ1 |
 | Latency RQ3 | B0 và M1 | — | trả lời RQ3 |
 
-**Luật B0 (tối thiểu):** `TOTAL_COST` = số tiền gần từ khóa "tổng/thanh toán/total" ở nửa dưới hóa đơn, trả cả ứng viên thay thế;
+**Luật trong B0 (bước gán ngữ nghĩa sau phân cụm, tối thiểu):** `TOTAL_COST` = số tiền gần từ khóa "tổng/thanh toán/total" ở nửa dưới hóa đơn, trả cả ứng viên thay thế;
 `TIMESTAMP` = regex ngày/giờ; `SELLER` = dòng chữ nổi bật ở đầu; `ADDRESS` = dòng giống địa chỉ ngay dưới seller.
 
 **Gán nhãn cho M1:** chạy pipeline trên mọi ảnh → với mỗi từ OCR, gán nhãn của vùng nhãn MC-OCR có IoU/độ phủ lớn nhất

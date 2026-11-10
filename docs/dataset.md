@@ -44,10 +44,16 @@ The plan's `label_distribution` lists only `ADDRESS` (1880) and `SELLER` (1153),
 
 ## Data-use policy
 
-Baseline (pretrained models, no training on MC-OCR labels): labels are used only for audit and final evaluation;
-freeze every threshold before looking at held-out ground truth. A fine-tuned model (Week 4 option) trains on the
-**train** split only, selects hyper-parameters on **validation**, and reports on **test** once. Whichever route the
-team picks, state it explicitly in the report - do not call a fine-tuned model "unsupervised".
+The team decided (Nov 2026) that the extraction model is **supervised**. MC-OCR entity labels are used as follows:
+
+- **train** split: fit the models (fine-tuned LayoutXLM, the category classifier);
+- **validation** split: choose hyper-parameters, post-processing rules and the checkpoint;
+- **test** split: scored **once**, after every configuration is frozen;
+- inference never reads annotations.
+
+A fine-tuned model is never called "unsupervised" in the report. The Week-3 baseline (B0: frozen LayoutXLM features,
+clustering, rules) has no gradient training; the development (train) split tunes its clustering configuration and the
+cluster-to-field mapping, and the validation split selects its parameters.
 
 ## Other datasets
 
