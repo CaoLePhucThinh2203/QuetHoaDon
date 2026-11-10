@@ -22,7 +22,7 @@ from transformers import AutoProcessor  # noqa: E402
 
 from src.training.data import load_jsonl  # noqa: E402
 from src.training.engine import DEFAULTS, evaluate_records, load_model  # noqa: E402
-from src.training.field_eval import build_report  # noqa: E402
+from src.training.field_eval import build_report, format_report  # noqa: E402
 
 
 def _json_default(o):
@@ -71,24 +71,8 @@ def main() -> None:
 
     print(f"split={args.split}  receipts={report['n_receipts']}  device={device}  "
           f"{report['seconds_per_receipt'] * 1000:.0f} ms / receipt (incl. image loading)")
-    print("field            P      R      F1     exact_match   n_gt")
-    for fld, s in report["fields"].items():
-        print(f"{fld:<14} {s['precision']:.3f}  {s['recall']:.3f}  {s['f1']:.3f}   {s['exact_match']:.3f}         {int(s['n_gt'])}")
-    for key, title in (("fields_lenient_hard", "LENIENT (OCR-tolerant), hard decoding"),
-                       ("fields_lenient_soft", "LENIENT (OCR-tolerant), soft decoding for TOTAL_COST / TIMESTAMP")):
-        print(f"\n{title}\nfield            P      R      F1     exact_match   n_gt")
-        for fld, s in report[key].items():
-            print(f"{fld:<14} {s['precision']:.3f}  {s['recall']:.3f}  {s['f1']:.3f}   {s['exact_match']:.3f}         {int(s['n_gt'])}")
-    print("\nreceipt exact match, strict (all fields):", json.dumps(report["receipt_exact_match"]))
-    print("receipt exact match, lenient + soft:", json.dumps(report["receipt_exact_match_lenient_soft"]))
-    print("total amount errors (VND), hard:", json.dumps(report["total_amount"]))
-    print("total amount errors (VND), soft:", json.dumps(report["total_amount_soft"]))
-    print("why the total is missing (receipts with an annotated total):", json.dumps(report["total_diagnostics"]["categories"]))
-    print("word precision / recall / F1 per label (word level):")
-    for lab, s in report["token_prf"].items():
-        print(f"  {lab:<14} P={s['precision']:.3f} R={s['recall']:.3f} F1={s['f1']:.3f}  gold words={s['tp'] + s['fn']}")
-    print("entity micro F1:", round(report["entity_scores"]["micro"]["f1"], 4),
-          "| token ROC-AUC macro:", report["token_auc"]["macro"])
+    print(format_report(report))
+    print("entity micro F1:", round(report["entity_scores"]["micro"]["f1"], 4))
     print("full report:", args.out)
 
 
