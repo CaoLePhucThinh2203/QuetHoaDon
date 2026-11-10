@@ -1,5 +1,10 @@
 # Tình hình dự án — cập nhật 08/11/2026
 
+> **Ghi chú 10/11/2026:** nhóm đã **bỏ notebook DesignThinking** khỏi kế hoạch. Các số ở mục 3 và baseline "luật + LogisticRegression"
+> chỉ giữ để tham khảo, **không dùng làm baseline**. Baseline chính thức B0 là pipeline Tuần 3 (đặc trưng LayoutXLM đóng băng,
+> phân cụm, gán cụm vào trường kèm luật); model cải tiến là M1b (LayoutXLM fine-tune). Mục 4 và 6 bên dưới đã cũ: kế hoạch
+> hiện hành và bảng khớp với docx nằm ở [`project_plan.md`](project_plan.md).
+
 *Tổng hợp từ repo (commit `6449de5`), `AI Project Progress.docx` (bản trình bày Tuần 1-3) và notebook
 `QuetHoaDon_DesignThinking.ipynb` (chạy trên Colab GPU, **chưa có trong repo**). Bổ sung cho
 [`week3_progress_report.md`](week3_progress_report.md) và [`week4_plan.md`](week4_plan.md), không thay thế.*

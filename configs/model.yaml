@@ -24,7 +24,7 @@ recognition:
 
 layout_encoder:
   model_name: "microsoft/layoutxlm-base"
-  use_as: "feature_extractor"     # baseline; Week 4 adds a token-classification head (see plan)
+  use_as: "feature_extractor"     # the OCR run only needs this off; fine-tuning uses LayoutLMv2ForTokenClassification
   max_seq_length: 512
   coordinate_scale: 1000
   save_fp16: true

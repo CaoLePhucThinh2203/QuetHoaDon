@@ -59,18 +59,24 @@ records per-stage timing, resumes after interruptions and stops early on systema
 LayoutXLM-base is a multilingual document Transformer: an XLM-RoBERTa-style text encoder (12 layers, hidden size
 768) whose input embeddings add 2D position embeddings (x0, y0, x1, y1, width, height from the [0, 1000] box) and
 whose self-attention uses spatial-aware biases; image patches from a CNN backbone are appended as visual tokens.
-In the baseline it is used as a frozen feature extractor. The improved model (Week 4, pending the team's decision in
-`reports/week4_plan.md`) adds a linear token-classification head over the text positions
-(`768 -> n_labels`, BIO tags for the four annotated fields) and fine-tunes the encoder with cross-entropy loss.
+The team decided to **fine-tune** it (supervised). `LayoutLMv2ForTokenClassification` loaded from
+`microsoft/layoutxlm-base` adds a linear token-classification head over the text positions (`768 -> 9`: `O` plus
+`B-`/`I-` tags for the four annotated fields) and trains the whole encoder with cross-entropy loss. A frozen-encoder
+variant (M1a, head only) is kept as an ablation. See `reports/project_plan.md` for the full list of models and experiments.
 
 ## 5. Field extraction
 
-- **Baseline (rule-based, no training).** `TOTAL_COST`: amount candidate near total-related keywords in the lower
-  part of the receipt; `TIMESTAMP`: date/time regex; `SELLER`: header text; `ADDRESS`: address-like text near the seller.
-  Return alternatives and `uncertain` when evidence conflicts. LayoutXLM features can be clustered to report a
-  Silhouette score, but cluster ids carry no meaning on their own.
-- **Improved (fine-tuned token classifier).** Labels come from aligning OCR words to annotated regions by IoU; words
-  outside the four fields are `O`.
+- **Baseline B0 (Week-3 pipeline, no gradient training).** Frozen LayoutXLM features are clustered (the number of
+  clusters is chosen by Silhouette score on validation) and each cluster is mapped to a field by majority vote on the
+  development (train) split, because cluster ids carry no meaning on their own. Keyword and format rules refine the
+  result: `TOTAL_COST` amount near total-related keywords in the lower part of the receipt, `TIMESTAMP` date/time
+  regex, `SELLER` header text, `ADDRESS` address-like text near the seller. Return alternatives and `uncertain` when
+  evidence conflicts.
+- **Improved (fine-tuned token classifier).** Labels come from mapping each annotated polygon onto the processed image
+  and giving a word the label of the polygon that contains most of its box (`src/preprocessing/token_dataset.py`);
+  words outside the four fields are `O`. Consecutive words with the same field form one entity (`B-` then `I-`).
+  `src/extraction/decode.py` turns predicted tags back into field values (the amount of `TOTAL_COST` is taken from the
+  numeric words of the entity).
 
 ## 6. Limitations
 
