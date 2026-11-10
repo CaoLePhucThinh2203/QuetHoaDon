@@ -195,6 +195,56 @@ def decode_predictions_soft(records: Sequence[Dict[str, Any]], merged: Sequence[
     return preds
 
 
+# ---------------------------------------------------------------------------------- total-amount diagnosis
+def _amount_words(words: Sequence[str]) -> List[tuple]:
+    """``(word index, value)`` of every amount-shaped word, rejoining ``52`` + ``700`` into 52700."""
+    out = []
+    for i, w in enumerate(words):
+        parsed = parse_amount_token(w)
+        if parsed is not None:
+            out.append((i, parsed[1]))
+        elif re.fullmatch(r"\d{1,3}", w.strip()) and i + 1 < len(words) and re.fullmatch(r"\d{3}", words[i + 1].strip()):
+            value = int(w.strip() + words[i + 1].strip())
+            if value >= 1000:
+                out.append((i, value))
+    return out
+
+
+def total_diagnostics(records: Sequence[Dict[str, Any]], merged: Sequence[Dict[str, Any]],
+                      min_prob: float = 0.02, example_limit: int = 10) -> Dict[str, Any]:
+    """Why is the total missing? Splits the receipts with an annotated total into causes.
+
+    * ``amount_not_in_ocr``: no OCR word (or rejoined pair) equals the annotated amount (OCR / parsing ceiling);
+    * ``below_min_prob``: the right word exists but the model gives it almost no TOTAL_COST probability;
+    * ``ranked_lower``: the right word exists with some probability but another amount-shaped word has more;
+    * ``top1``: the right word has the highest TOTAL_COST probability among amount-shaped words.
+    """
+    cats = {"no_gt_amount": 0, "amount_not_in_ocr": 0, "below_min_prob": 0, "ranked_lower": 0, "top1": 0}
+    examples: Dict[str, List[str]] = {k: [] for k in cats}
+    for rec, m in zip(records, merged):
+        truth = gt_amount((rec.get("gt") or {}).get("TOTAL_COST"))
+        if truth is None:
+            cats["no_gt_amount"] += 1
+            continue
+        scored = [(float(m["probs"][i, _TOTAL_IDS].sum()), i, v) for i, v in _amount_words(rec["words"])]
+        match = [s for s in scored if s[2] == truth]
+        if not match:
+            cat = "amount_not_in_ocr"
+        else:
+            best_all = max(scored, key=lambda s: (s[0], s[1]))
+            best_match = max(match, key=lambda s: (s[0], s[1]))
+            if best_match[0] < min_prob:
+                cat = "below_min_prob"
+            elif best_match[:2] == best_all[:2]:
+                cat = "top1"
+            else:
+                cat = "ranked_lower"
+        cats[cat] += 1
+        if len(examples[cat]) < example_limit:
+            examples[cat].append(rec.get("file_id", rec.get("img_id")))
+    return {"categories": cats, "examples": examples}
+
+
 # ---------------------------------------------------------------------------------- lenient scoring
 def lenient_match(field: str, pred: Optional[str], gt_texts: Optional[Sequence[str]]) -> bool:
     """Match rules that tolerate OCR noise in the annotated *text*.
@@ -274,6 +324,7 @@ def build_report(records: Sequence[Dict[str, Any]], merged: Sequence[Dict[str, A
         "receipt_exact_match_lenient_soft": receipt_lenient_match(soft, gts),
         "total_amount": amount_errors(preds, gts),
         "total_amount_soft": amount_errors(soft, gts),
+        "total_diagnostics": total_diagnostics(records, merged),
         "token_auc": token_auc(records, merged),
         "token_prf": token_prf(cm),
         "confusion_labels": list(LABELS),

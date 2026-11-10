@@ -138,5 +138,39 @@ class TestLenientMatch(unittest.TestCase):
         self.assertEqual(rep["receipt_exact_match_lenient_soft"]["rate"], 1.0)
 
 
+class TestTotalDiagnostics(unittest.TestCase):
+    @staticmethod
+    def rec(name, words, gt_total):
+        gt = {"TOTAL_COST": gt_total} if gt_total else {"SELLER": ["x"]}
+        return {"img_id": name + ".jpg", "file_id": name, "words": words, "labels": ["O"] * len(words), "gt": gt}
+
+    def test_every_cause_is_counted(self):
+        recs = [
+            self.rec("top", ["Tong", "74,000", "5,000"], ["Tong", "74,000"]),
+            self.rec("lower", ["74,000", "5,000"], ["74,000"]),
+            self.rec("absent", ["Tong", "5,000"], ["74,000"]),
+            self.rec("nogt", ["a"], None),
+            self.rec("weak", ["74,000"], ["74,000"]),
+            self.rec("pair", ["52", "700"], ["52,700"]),
+        ]
+        merged = [
+            {"probs": np.stack([probs_row(), probs_row(I__TOTAL_COST=0.5), probs_row(I__TOTAL_COST=0.1)])},
+            {"probs": np.stack([probs_row(I__TOTAL_COST=0.1), probs_row(I__TOTAL_COST=0.6)])},
+            {"probs": np.stack([probs_row(), probs_row(I__TOTAL_COST=0.3)])},
+            {"probs": np.stack([probs_row()])},
+            {"probs": np.stack([probs_row()])},
+            {"probs": np.stack([probs_row(I__TOTAL_COST=0.5), probs_row()])},
+        ]
+        d = fe.total_diagnostics(recs, merged)
+        self.assertEqual(d["categories"], {"no_gt_amount": 1, "amount_not_in_ocr": 1, "below_min_prob": 1,
+                                           "ranked_lower": 1, "top1": 2})
+        self.assertEqual(d["examples"]["ranked_lower"], ["lower"])
+        self.assertEqual(sorted(d["examples"]["top1"]), ["pair", "top"])
+
+    def test_report_carries_the_diagnosis(self):
+        rep = fe.build_report([rec1()], [{"probs": onehot(R1_TAGS)}])
+        self.assertEqual(rep["total_diagnostics"]["categories"]["top1"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

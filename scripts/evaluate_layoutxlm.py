@@ -83,6 +83,7 @@ def main() -> None:
     print("receipt exact match, lenient + soft:", json.dumps(report["receipt_exact_match_lenient_soft"]))
     print("total amount errors (VND), hard:", json.dumps(report["total_amount"]))
     print("total amount errors (VND), soft:", json.dumps(report["total_amount_soft"]))
+    print("why the total is missing (receipts with an annotated total):", json.dumps(report["total_diagnostics"]["categories"]))
     print("word precision / recall / F1 per label (word level):")
     for lab, s in report["token_prf"].items():
         print(f"  {lab:<14} P={s['precision']:.3f} R={s['recall']:.3f} F1={s['f1']:.3f}  gold words={s['tp'] + s['fn']}")

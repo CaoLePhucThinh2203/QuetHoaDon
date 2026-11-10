@@ -51,6 +51,7 @@ DEFAULTS: Dict[str, Any] = {
     "class_weight": "none",     # "none" | "sqrt_inverse"
     "label_smoothing": 0.0,
     "freeze_encoder": False,    # True = model M1a (train the classification head only)
+    "select_metric": "micro",   # checkpoint / early-stop metric: "micro" entity F1 or "macro" (mean of the 4 fields)
 }
 
 
@@ -218,7 +219,7 @@ def train_model(cfg: Dict[str, Any], train_records: Sequence[Dict[str, Any]], va
         "data": {"train_receipts": len(train_records), "val_receipts": len(val_records),
                  "train_windows": len(train_windows), "train_receipts_needing_several_windows": n_multi,
                  "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad)},
-        "history": [], "best_epoch": None, "best_val_f1": -1.0, "status": "running",
+        "history": [], "best_epoch": None, "best_val_f1": -1.0, "best_score": -1.0, "status": "running",
     }
     run_path = os.path.join(out_dir, "run.json")
     _write_json_atomic(run, run_path)
@@ -250,16 +251,21 @@ def train_model(cfg: Dict[str, Any], train_records: Sequence[Dict[str, Any]], va
 
         ev = evaluate_records(model, val_records, processor, image_dir, cfg, device)
         micro = ev["scores"]["micro"]
+        field_f1 = [ev["scores"][f]["f1"] for f in ev["scores"] if f != "micro"]
+        macro = sum(field_f1) / max(1, len(field_f1))
         entry = {
             "epoch": epoch, "train_loss": loss_sum / max(1, n_batches), "val_loss": ev["loss"],
             "val_precision": micro["precision"], "val_recall": micro["recall"], "val_f1": micro["f1"],
+            "val_macro_f1": macro,
             "val_f1_by_field": {f: ev["scores"][f]["f1"] for f in ev["scores"] if f != "micro"},
             "val_uncovered_words": ev["uncovered_words"], "lr": scheduler.get_last_lr()[0],
             "seconds": round(time.time() - t0, 1),
         }
         run["history"].append(entry)
-        improved = entry["val_f1"] > run["best_val_f1"]
+        score = macro if cfg["select_metric"] == "macro" else entry["val_f1"]
+        improved = score > run["best_score"]
         if improved:
+            run["best_score"] = score
             run["best_val_f1"], run["best_epoch"] = entry["val_f1"], epoch
             model.save_pretrained(os.path.join(out_dir, "best"))
             bad_epochs = 0
@@ -267,6 +273,7 @@ def train_model(cfg: Dict[str, Any], train_records: Sequence[Dict[str, Any]], va
             bad_epochs += 1
         print(f"[epoch {epoch:>2}] train_loss={entry['train_loss']:.4f} val_loss={entry['val_loss']:.4f} "
               f"val_F1={entry['val_f1']:.4f} (P={entry['val_precision']:.3f} R={entry['val_recall']:.3f}) "
+              f"macroF1={entry['val_macro_f1']:.4f} "
               f"{entry['seconds']}s{'  *best*' if improved else ''}")
         _write_json_atomic(run, run_path)
         if bad_epochs >= cfg["patience"]:

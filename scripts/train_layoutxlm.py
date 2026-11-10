@@ -44,6 +44,8 @@ def main() -> None:
     ap.add_argument("--overlap-tokens", type=int, default=DEFAULTS["overlap_tokens"])
     ap.add_argument("--num-workers", type=int, default=DEFAULTS["num_workers"])
     ap.add_argument("--freeze-encoder", action="store_true", help="Train only the classification head (M1a)")
+    ap.add_argument("--select-metric", choices=["micro", "macro"], default=DEFAULTS["select_metric"],
+                    help="Metric for the best checkpoint and early stopping: micro entity F1 or macro (mean of 4 fields)")
     ap.add_argument("--no-fp16", action="store_true")
     ap.add_argument("--max-train-docs", type=int, default=None, help="Use only the first N training receipts")
     ap.add_argument("--max-val-docs", type=int, default=None, help="Use only the first N validation receipts")
@@ -62,7 +64,7 @@ def main() -> None:
         "weight_decay": args.weight_decay, "warmup_ratio": args.warmup_ratio, "patience": args.patience,
         "seed": args.seed, "class_weight": args.class_weight, "label_smoothing": args.label_smoothing,
         "max_tokens": args.max_tokens, "overlap_tokens": args.overlap_tokens, "num_workers": args.num_workers,
-        "freeze_encoder": args.freeze_encoder, "fp16": not args.no_fp16,
+        "freeze_encoder": args.freeze_encoder, "fp16": not args.no_fp16, "select_metric": args.select_metric,
     }
     out_dir = Path(args.out) / f"{args.name}_{time.strftime('%Y%m%d_%H%M%S')}"
     run = train_model(cfg, train, val, args.image_dir, str(out_dir))
