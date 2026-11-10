@@ -62,6 +62,18 @@ class TestRules(unittest.TestCase):
         self.assertEqual(out["a"]["TOTAL_COST"], "40,000")
         self.assertEqual(out["a"]["TIMESTAMP"], "01/02/2020")
 
+    def test_date_rule_beats_the_model_but_not_a_missing_date(self):
+        recs = [{"img_id": "a", "words": ["Ngay", "01/02/2020"]}, {"img_id": "b", "words": ["abc"]}]
+        out = fill_missing(recs, {"a": {"TIMESTAMP": "xx"}, "b": {"TIMESTAMP": "keep"}})
+        self.assertEqual(out["a"]["TIMESTAMP"], "01/02/2020")
+        self.assertEqual(out["b"]["TIMESTAMP"], "keep")
+        out = fill_missing(recs, {"a": {"TIMESTAMP": "xx"}}, prefer_rule=())
+        self.assertEqual(out["a"]["TIMESTAMP"], "xx")
+
+    def test_gt_amount_ignores_barcodes(self):
+        self.assertEqual(fe.gt_amount(["Tong", "74,000", "0902543800123"]), 74000)
+        self.assertIsNone(fe.gt_amount(["0902543800123"]))
+
 
 def rec(name, words, labels, gt):
     return {"img_id": name + ".jpg", "file_id": name, "words": words, "labels": labels, "gt": gt,

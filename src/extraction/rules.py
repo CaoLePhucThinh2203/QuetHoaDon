@@ -63,14 +63,21 @@ def apply_rules(words: Sequence[str]) -> Dict[str, Optional[str]]:
     return {"TOTAL_COST": rule_total(words), "TIMESTAMP": rule_timestamp(words)}
 
 
-def fill_missing(records: Sequence[Dict], preds: Dict[str, Dict[str, Optional[str]]]
-                 ) -> Dict[str, Dict[str, Optional[str]]]:
-    """Copy of ``preds`` where an empty TOTAL_COST / TIMESTAMP is filled by the rule for that receipt."""
+PREFER_RULE = ("TIMESTAMP",)     # on validation the first date-shaped word beats the tagger (B0 .65 vs M1b .33)
+
+
+def fill_missing(records: Sequence[Dict], preds: Dict[str, Dict[str, Optional[str]]],
+                 prefer_rule: Sequence[str] = PREFER_RULE) -> Dict[str, Dict[str, Optional[str]]]:
+    """Copy of ``preds`` where TOTAL_COST / TIMESTAMP come from the rules when the model gave none.
+
+    Fields in ``prefer_rule`` use the rule value whenever the rule finds one, even if the model predicted something
+    (chosen on validation only; the same decoding is applied to every system so comparisons stay fair).
+    """
     out: Dict[str, Dict[str, Optional[str]]] = {}
     for rec in records:
         p = dict(preds.get(rec["img_id"]) or {})
         for field, value in apply_rules(rec["words"]).items():
-            if not p.get(field) and value:
+            if value and (not p.get(field) or field in prefer_rule):
                 p[field] = value
         out[rec["img_id"]] = p
     return out

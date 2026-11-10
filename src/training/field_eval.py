@@ -23,6 +23,7 @@ from src.preprocessing.token_dataset import ID2LABEL, LABEL2ID, LABELS
 _TOTAL_IDS = [LABEL2ID["B-TOTAL_COST"], LABEL2ID["I-TOTAL_COST"]]
 _TIMESTAMP_IDS = [LABEL2ID["B-TIMESTAMP"], LABEL2ID["I-TIMESTAMP"]]
 _DATE_RE = re.compile(r"(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})")
+PLAUSIBLE_MIN, PLAUSIBLE_MAX = 1000, 500_000_000     # VND range of a receipt total
 LENIENT_CER = 0.3           # SELLER / ADDRESS count as correct when the character error rate is at most this
 
 
@@ -45,7 +46,7 @@ def gold_fields(records: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, List[s
 def gt_amount(texts: Optional[Sequence[str]]) -> Optional[int]:
     """The annotated total: the largest amount among the TOTAL_COST region texts (the label text has none)."""
     amounts = [normalize_amount(t) for t in (texts or [])]
-    amounts = [a for a in amounts if a]
+    amounts = [a for a in amounts if a and PLAUSIBLE_MIN <= a <= PLAUSIBLE_MAX]    # barcodes / phone numbers are not totals
     return max(amounts) if amounts else None
 
 
