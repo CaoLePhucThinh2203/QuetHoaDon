@@ -78,6 +78,14 @@ class TestRules(unittest.TestCase):
         self.assertEqual(fe.normalize_date("Ngày bân: 13/08/2 2020 10: 19"), "13/08/2020")
         self.assertEqual(fe.normalize_date("14/08/2020 08:29"), "14/08/2020")
 
+    def test_gold_region_with_the_amount_written_twice(self):
+        from src.evaluation.metrics import field_match, gold_amounts
+        self.assertEqual(fe.gt_amount(["27,000 27,000"]), 27000)
+        self.assertTrue(field_match("TOTAL_COST", "27,000", ["27,000 27,000"]))
+        self.assertTrue(field_match("TOTAL_COST", "74,000", ["Tổng cộng", "74,000"]))
+        self.assertFalse(field_match("TOTAL_COST", "75,000", ["27,000 27,000"]))
+        self.assertIn(46000, gold_amounts(["46,000 46,000"]))
+
     def test_gt_amount_ignores_barcodes(self):
         self.assertEqual(fe.gt_amount(["Tong", "74,000", "0902543800123"]), 74000)
         self.assertIsNone(fe.gt_amount(["0902543800123"]))
@@ -156,6 +164,36 @@ class TestBaselineB0(unittest.TestCase):
         self.assertEqual(len(cluster_summary(model)), 4)
         rep = fe.build_report(recs[8:], merged, n_boot=20)
         self.assertEqual(rep["fields_lenient_soft_rules"]["TOTAL_COST"]["f1"], 1.0)
+
+
+class TestSeedsAndDrawing(unittest.TestCase):
+    def test_summarize_seeds(self):
+        import json
+        import os
+        import tempfile
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("aggregate_seeds", "scripts/aggregate_seeds.py")
+        agg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(agg)
+        paths = []
+        with tempfile.TemporaryDirectory() as d:
+            for i, v in enumerate((0.60, 0.70)):
+                p = os.path.join(d, f"r{i}.json")
+                boot = {m: {"value": v} for m in agg.METRICS}
+                json.dump({"bootstrap_soft_rules": boot}, open(p, "w"))
+                paths.append(p)
+            s = agg.summarize(paths)
+        self.assertAlmostEqual(s["macro_f1"]["mean"], 0.65)
+        self.assertAlmostEqual(s["macro_f1"]["std"], 0.0707107, places=5)
+
+    def test_render_receipt_adds_a_caption_strip(self):
+        from PIL import Image
+        from src.evaluation.visualize import ascii_fold, render_receipt
+        rec = {"boxes": [[100, 100, 400, 200], [500, 500, 900, 600]], "labels": ["B-SELLER", "O"]}
+        out = render_receipt(rec, Image.new("RGB", (400, 600), "white"), ["id", "TOTAL_COST [model_wrong]"])
+        self.assertEqual(out.size[0], 640)
+        self.assertGreater(out.size[1], 600)
+        self.assertEqual(ascii_fold("Tổng tiền đã"), "Tong tien da")
 
 
 if __name__ == "__main__":

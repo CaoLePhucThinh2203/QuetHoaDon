@@ -130,6 +130,25 @@ def group_gt_fields(instances: Iterable) -> Dict[str, List[str]]:
     return {lab: [t for _, _, t in sorted(v)] for lab, v in by_label.items()}
 
 
+def gold_amounts(texts: Optional[Iterable[str]]) -> set:
+    """Every amount an annotated TOTAL_COST region can stand for.
+
+    A region may hold several numbers (``"27,000 27,000"``: the same total written twice) which would merge into
+    one absurd value if all digits were joined, so each whitespace-separated word is read on its own as well.
+    """
+    out = set()
+    for text in texts or []:
+        whole = normalize_amount(text)
+        if whole is not None:
+            out.add(whole)
+        for word in str(text).split():
+            if any(c.isdigit() for c in word):
+                value = normalize_amount(word)
+                if value is not None:
+                    out.add(value)
+    return out
+
+
 def field_match(field: str, pred: Optional[str], gt_texts: Optional[List[str]],
                 ignore_diacritics: bool = False) -> bool:
     """Exact match after normalisation.
@@ -141,7 +160,7 @@ def field_match(field: str, pred: Optional[str], gt_texts: Optional[List[str]],
         return False
     if field == "TOTAL_COST":
         p = normalize_amount(pred)
-        return p is not None and any(p == normalize_amount(g) for g in gt_texts)
+        return p is not None and p in gold_amounts(gt_texts)
     return normalize_text(pred, ignore_diacritics) == normalize_text(" ".join(gt_texts), ignore_diacritics)
 
 

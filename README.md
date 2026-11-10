@@ -118,6 +118,20 @@ python scripts/build_token_dataset.py --csv <dataset>/mcocr_train_df.csv \
 
 Details: [`docs/dataset.md`](docs/dataset.md#preprocessing-steps).
 
+## Results (Week 4, one seed)
+
+Field-level macro F1 on the held-out test split (116 receipts; lenient matching, 95 % bootstrap interval):
+
+| Model | Macro F1 | Receipts with all fields right |
+| --- | --- | --- |
+| B0: Week 3 pipeline (frozen features + clustering + rules) | 0.352 [0.32, 0.39] | 0 / 116 |
+| M1a: frozen LayoutXLM + linear head | 0.638 [0.58, 0.69] | 30 / 116 |
+| M1b: fine-tuned LayoutXLM | 0.658 [0.60, 0.71] | 32 / 116 |
+
+About 70 % of the remaining errors come from OCR text or annotations. Roughly 10 % of validation / test receipts have a
+near-duplicate in train (macro F1 without them: M1b 0.642). Details, protocol and limits:
+[`reports/week4_evaluation.md`](reports/week4_evaluation.md); how to train and score: [`docs/training.md`](docs/training.md).
+
 ## 4. Model development notebooks / scripts
 
 | Notebook / script | Purpose | Where |
