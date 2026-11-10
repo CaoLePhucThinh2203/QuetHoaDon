@@ -61,21 +61,70 @@ def _clean_amount_token(token: str) -> str:
     return t.strip(".,")
 
 
+# OCR (CRAFT boxes cut at the thousands separator) splits "107,000" into a head and a tail, e.g.
+# "107,0" + ",000", "10,0" + "000", "253" + "000", "87,0" + "L000", "442,1" + "000", "97" + "000d".
+_SPLIT_HEAD = re.compile(r"^(\d{1,3}(?:[.,]\d{3})*)(?:[.,]\d?)?$")
+_SPLIT_TAIL = re.compile(r"^[.,]?(?:[l1i]000|\d{3})$")
+
+
+def merge_split_amount(head: str, tail: str) -> Optional[int]:
+    """Value in VND of an amount that OCR split into two words (``"107,0"`` + ``",000"`` -> 107000), else ``None``.
+
+    The head keeps its complete digit groups (a stray digit after the last separator is the duplicated start of the
+    tail and is dropped); the tail is ``000`` with an optional separator, a misread ``1``/``L`` and a currency sign.
+    """
+    ht, tt = _clean_amount_token(head), _clean_amount_token(tail)
+    h = _SPLIT_HEAD.match(ht)
+    if h is None or not _SPLIT_TAIL.match(tt):
+        return None
+    has_sep = bool(re.search(r"[.,]", head + tail))
+    if tt.startswith("1") and len(tt) == 4 and not has_sep:
+        return None                     # "253" + "1000" is more likely two numbers than 253,000
+    if re.search(r"[.,]\d{3}", h.group(1)) and not tail.strip().startswith((",", ".")):
+        return None                     # "12.000" + "000": the head is already a complete amount
+    return int(re.sub(r"[.,]", "", h.group(1))) * 1000 + int(tt[-3:])
+
+
+def amount_candidates(words: Sequence[str], min_value: int = 1000, max_value: int = 500_000_000
+                      ) -> List[Tuple[int, int, str, int]]:
+    """Every plausible amount among ``words`` as ``(start, end, text, value)`` (``end`` exclusive), in order.
+
+    Single words follow ``parse_amount_token``; a head/tail pair split by OCR (``merge_split_amount``) is one
+    candidate spanning both words and its words are not reused as single candidates.
+    """
+    out: List[Tuple[int, int, str, int]] = []
+    i = 0
+    while i < len(words):
+        if i + 1 < len(words):
+            merged = merge_split_amount(words[i], words[i + 1])
+            if merged is not None and min_value <= merged <= max_value:
+                out.append((i, i + 2, f"{merged:,}", merged))
+                i += 2
+                continue
+        parsed = parse_amount_token(words[i], min_value, max_value)
+        if parsed is not None:
+            out.append((i, i + 1, parsed[0], parsed[1]))
+        i += 1
+    return out
+
+
 def pick_amount(words: Sequence[str]) -> Optional[str]:
     """The money amount among ``words`` (the last one), or ``None``.
 
     Tokens with a thousands separator (``74,000``, ``1.250.000``) win over bare digit strings (``74000``), which
-    could be codes. OCR often splits ``74,000`` into ``74`` and ``000``; that pair is rejoined as ``74,000``.
+    could be codes. OCR often splits ``74,000`` into ``74`` and ``000`` (or ``74,0`` and ``,000``); such a pair is
+    rejoined as ``74,000``.
     """
     separated: List[str] = []
     plain: List[str] = []
     i = 0
     while i < len(words):
         t = _clean_amount_token(words[i])
+        merged = merge_split_amount(words[i], words[i + 1]) if i + 1 < len(words) else None
         if _SEP_AMOUNT.match(t):
             separated.append(t)
-        elif re.fullmatch(r"\d{1,3}", t) and i + 1 < len(words) and re.fullmatch(r"\d{3}", _clean_amount_token(words[i + 1])):
-            separated.append(f"{t},{_clean_amount_token(words[i + 1])}")
+        elif merged is not None:
+            separated.append(f"{merged:,}")
             i += 1
         elif _PLAIN_AMOUNT.match(t):
             plain.append(t)
