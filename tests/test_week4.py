@@ -166,5 +166,35 @@ class TestBaselineB0(unittest.TestCase):
         self.assertEqual(rep["fields_lenient_soft_rules"]["TOTAL_COST"]["f1"], 1.0)
 
 
+class TestSeedsAndDrawing(unittest.TestCase):
+    def test_summarize_seeds(self):
+        import json
+        import os
+        import tempfile
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("aggregate_seeds", "scripts/aggregate_seeds.py")
+        agg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(agg)
+        paths = []
+        with tempfile.TemporaryDirectory() as d:
+            for i, v in enumerate((0.60, 0.70)):
+                p = os.path.join(d, f"r{i}.json")
+                boot = {m: {"value": v} for m in agg.METRICS}
+                json.dump({"bootstrap_soft_rules": boot}, open(p, "w"))
+                paths.append(p)
+            s = agg.summarize(paths)
+        self.assertAlmostEqual(s["macro_f1"]["mean"], 0.65)
+        self.assertAlmostEqual(s["macro_f1"]["std"], 0.0707107, places=5)
+
+    def test_render_receipt_adds_a_caption_strip(self):
+        from PIL import Image
+        from src.evaluation.visualize import ascii_fold, render_receipt
+        rec = {"boxes": [[100, 100, 400, 200], [500, 500, 900, 600]], "labels": ["B-SELLER", "O"]}
+        out = render_receipt(rec, Image.new("RGB", (400, 600), "white"), ["id", "TOTAL_COST [model_wrong]"])
+        self.assertEqual(out.size[0], 640)
+        self.assertGreater(out.size[1], 600)
+        self.assertEqual(ascii_fold("Tổng tiền đã"), "Tong tien da")
+
+
 if __name__ == "__main__":
     unittest.main()
