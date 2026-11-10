@@ -14,7 +14,7 @@ pipeline ảnh mới chạy được ở mức mẫu.
 | 2 | Feature engineering | **Chưa** | Plan liệt kê 6 nhóm đặc trưng; code chỉ tạo embedding LayoutXLM + bbox chuẩn hóa | Chưa có code cho vị trí dọc, căn hàng, pattern số/tiền/ngày, quan hệ giữa vùng chữ |
 | 3 | Model selection justification | **Gần xong** | Bảng chọn CRAFT / VietOCR / LayoutXLM + lý do trong plan và `docs/architecture.md` | Mâu thuẫn chưa chốt: Tuần 2 nói LayoutLM *trích xuất* trường, Tuần 3 nói LayoutXLM chỉ *trích đặc trưng* + clustering; chưa so sánh với phương án thay thế |
 | 4 | Baseline model metrics | **Chưa** | Chỉ có thống kê dữ liệu, không có số đo mô hình nào (CER/WER, detection, F1, Silhouette, EM, thời gian) | Toàn bộ; lần chạy full gần nhất ghi nhận 5/1044 ảnh thành công do lỗi `inhomogeneous shape` |
-| 5 | Planned modelling tasks cho Tuần 4 | **Một phần** | Danh sách 9 việc trong handover cũ, không có người phụ trách / hạn / tiêu chí | Đã bổ sung trong `reports/week4_plan.md` |
+| 5 | Planned modelling tasks cho Tuần 4 | **Một phần** | Danh sách 9 việc trong handover cũ, không có người phụ trách / hạn / tiêu chí | Đã bổ sung trong `docs/reports/week4_plan.md` |
 
 ## 2. Sai sót / thiếu sót trong repo
 
@@ -66,4 +66,4 @@ Model hiện tại = pipeline pretrained **CRAFT → VietOCR → LayoutXLM (trí
 
 ## 4. Việc tiếp theo
 
-Xem `reports/week4_plan.md`.
+Xem `docs/reports/week4_plan.md`.

@@ -80,5 +80,18 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.dirs.base, "failed.json")))
 
 
+class TestPredict(unittest.TestCase):
+    def test_predict_returns_result_without_writing_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = make_images(tmp, 1)[0]
+            pl = ReceiptPipeline(ImagePreprocessor(enhance=False, max_skew=0.0),
+                                 FakeDetector([[10, 10, 100, 40]]), FakeRecognizer(), None)
+            meta = pl.predict(path)
+            self.assertEqual(meta["file_id"], "img0")
+            self.assertEqual(meta["n_text_regions"], 1)
+            self.assertEqual(meta["ocr_items"][0]["text"], "text")
+            self.assertEqual(os.listdir(tmp), ["img0.jpg"])
+
+
 if __name__ == "__main__":
     unittest.main()

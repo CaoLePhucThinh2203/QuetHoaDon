@@ -1,22 +1,37 @@
-# QuetHoaDon
+# QuetHoaDon - Vietnamese Receipt OCR & KIE
 
-Vietnamese receipt understanding: read a receipt photo and extract structured information
-(seller, address, timestamp, total, and item lines) with a **CRAFT → VietOCR → LayoutXLM** pipeline.
+[![tests](https://github.com/CaoLePhucThinh2203/QuetHoaDon/actions/workflows/tests.yml/badge.svg)](https://github.com/CaoLePhucThinh2203/QuetHoaDon/actions/workflows/tests.yml)
+
+Read a photo of a Vietnamese receipt and extract structured information (seller, address, timestamp, total) with a
+**CRAFT → VietOCR → LayoutXLM** pipeline.
+
+![Pipeline architecture](assets/pipeline_architecture.png)
 
 > **Status (10/11/2026, Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are
-> implemented in `src/` and run through `notebooks/02_pipeline_colab.ipynb`. The team chose a **supervised** extraction
-> model: fine-tuned LayoutXLM token classification. The label-mapping and token-dataset code is being added; **no model
-> has been trained in the repo yet and no metrics have been measured.** Full task list:
-> [`reports/project_plan.md`](reports/project_plan.md); latest status: [`reports/project_status.md`](reports/project_status.md).
+> implemented in `src/` and unit-tested. Stage 4 (fine-tuned LayoutXLM token classifier) is in progress: the BIO
+> token dataset and the decoding code exist, **no model has been trained yet and no metrics have been measured.**
+> Plan and status: [`docs/reports/`](docs/reports/).
+
+## Quickstart (3 commands)
+
+```bash
+git clone https://github.com/CaoLePhucThinh2203/QuetHoaDon.git && cd QuetHoaDon
+pip install -r requirements.txt && pip install craft-text-detector vietocr --no-deps \
+    && pip install gdown einops prefetch_generator albumentations lmdb imgaug
+python scripts/run_pipeline.py --image assets/samples/sample_receipt.jpg --output outputs/sample_receipt.json
+```
+
+The last command preprocesses the bundled sample, detects text with CRAFT, reads it with VietOCR and prints the
+OCR result as JSON (text, confidence and box of every line in reading order, plus per-stage timing). It runs on CPU
+or GPU (`--device auto|cpu|cuda`); pretrained weights are downloaded on first use. To run only the unit
+tests, see [5.3](#53-unit-tests-no-gpu).
 
 ## Problem statement
 
 Entering expenses by hand is slow and error-prone, so many people give up tracking their spending. This project
-builds an AI pipeline that combines OCR and Key Information Extraction to read photos of Vietnamese retail receipts,
-extract the seller, address, date and total, and assign the receipt to a spending category
-(food / move / study / shop / other) for the FinBud app.
-
-## Research questions
+combines OCR and Key Information Extraction to read photos of Vietnamese retail receipts, extract the seller,
+address, date and total, and assign the receipt to a spending category (food / move / study / shop / other) for the
+FinBud app.
 
 - **RQ1 (Robustness):** How much do image preprocessing (denoising, lighting/contrast correction) and data
   augmentation improve text recognition on blurred, wrinkled or poorly lit receipts?
@@ -24,98 +39,129 @@ extract the seller, address, date and total, and assign the receipt to a spendin
   best assigns receipts to standard spending categories?
 - **RQ3 (Efficiency & latency):** What is the trade-off between accuracy and response time across the compared models?
 
-## Pipeline
+## 1. Source code
 
-```mermaid
-flowchart LR
-    A[Receipt image] --> B[Stage 0: resize / deskew / enhance]
-    B --> C[Stage 1: CRAFT detection]
-    C --> D[Stage 2: VietOCR recognition]
-    D --> E[Stage 3: LayoutXLM features]
-    E --> F[Stage 4: field extraction - Week 4]
-    F --> G[JSON: SELLER, ADDRESS, TIMESTAMP, TOTAL_COST, items]
-```
+All logic lives in `src/`, one package per pipeline stage; notebooks and scripts only call it.
 
 | Stage | Module | Status |
 | --- | --- | --- |
 | 0 Preprocessing | `src/preprocessing/image_preprocessor.py` | implemented, unit-tested |
-| 1 Detection (CRAFT) | `src/detection/` | implemented; logic unit-tested, model call verified on Colab only |
-| 2 OCR (VietOCR) | `src/recognition/` | implemented; logic unit-tested, model call verified on Colab only |
+| 1 Detection (CRAFT) | `src/detection/` | implemented; logic unit-tested, model call verified on Colab |
+| 2 OCR (VietOCR) | `src/recognition/` | implemented; logic unit-tested, model call verified on Colab |
 | 3 Features (LayoutXLM) | `src/features/` | implemented, not unit-tested end to end |
-| 4 Field extraction | - | **not implemented** (Week 4) |
-| Evaluation metrics | `src/evaluation/` | implemented, unit-tested; not yet run on real predictions |
-
-Details: [`docs/architecture.md`](docs/architecture.md). Dataset facts and caveats: [`docs/dataset.md`](docs/dataset.md).
-
-## Repository structure
+| 4 Field extraction | `src/extraction/` | output schema + BIO decoding done; classifier not trained yet |
+| Orchestration | `src/pipeline/runner.py` | `ReceiptPipeline.predict()` (one image), `.run()` (dataset, resumable) |
+| Evaluation | `src/evaluation/metrics.py` | CER/WER, detection recall, field P/R/F1; not yet run on real predictions |
+| Shared | `src/common/` | bbox utilities, config loader |
 
 ```text
 QuetHoaDon/
-├── README.md
-├── requirements.txt            # runtime (Colab/Kaggle GPU)
-├── requirements-dev.txt        # light deps: enough to run all unit tests / CI
-├── configs/
-│   ├── config.yaml             # paths per environment, seed, data policy
-│   ├── dataset.yaml            # MC-OCR files, annotated fields, split
-│   └── model.yaml              # preprocessing / CRAFT / VietOCR / LayoutXLM parameters
+├── .github/workflows/tests.yml   # CI: unit tests on every push / PR
+├── assets/
+│   ├── pipeline_architecture.png
+│   ├── preprocessing_before_after.jpg
+│   └── samples/sample_receipt.jpg  # synthetic receipt for a quick test
+├── configs/                      # config.yaml (paths, data policy), dataset.yaml, model.yaml
 ├── docs/
-│   ├── architecture.md         # pipeline, data contracts, model architecture, limits
-│   ├── dataset.md              # MC-OCR facts, split, data-use policy
-│   └── archive/                # documents of the earlier unsupervised direction (history only)
+│   ├── architecture.md           # pipeline, data contracts, model architecture, limits
+│   ├── dataset.md                # MC-OCR facts, preprocessing steps, split, data-use policy
+│   └── reports/                  # project plan, status, weekly reports
 ├── notebooks/
-│   ├── 01_mc_ocr_eda.ipynb     # dataset audit (run it and keep the outputs)
-│   └── 02_pipeline_colab.ipynb # thin runner: install -> build pipeline -> smoke test -> full run
-├── reports/
-│   ├── project_plan.md           # rubric check, models to compare, full task list by phase
-│   ├── project_status.md         # latest status, baseline numbers, proposed direction
-│   ├── week3_progress_report.md  # what is done / missing, repo audit, model assessment
-│   └── week4_plan.md             # tasks, owners, metrics, deliverables for Week 4
+│   ├── 01_mc_ocr_eda.ipynb       # dataset audit
+│   └── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
 ├── scripts/
-│   ├── prepare_dataset.py      # manifests + invoice-level train/val/test split
-│   └── build_token_dataset.py  # OCR JSON + annotations -> BIO token dataset (.jsonl) + label-coverage report
-├── src/
-│   ├── common/                 # bbox utilities, config loader
-│   ├── preprocessing/          # annotation_parser, dataset_preparer, image_preprocessor, token_dataset
-│   ├── detection/              # interface, post-processing, CRAFT detector
-│   ├── recognition/            # interface, OCR item, VietOCR recognizer
-│   ├── features/               # LayoutXLM feature extractor
-│   ├── extraction/             # output schema, BIO decoding into field values
-│   ├── evaluation/             # CER/WER, detection P/R, field-level P/R/F1, amount normalisation
-│   └── pipeline/               # ReceiptPipeline: batch run, resume, early stop
-├── tests/                      # 60+ unit tests (no GPU needed)
-└── .github/workflows/tests.yml # CI: runs the unit tests on every push / PR
+│   ├── prepare_dataset.py        # manifests + invoice-level split
+│   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
+│   └── run_pipeline.py           # one image -> JSON (CLI entrypoint)
+├── src/                          # source code (table above)
+├── tests/                        # 100+ unit tests, no GPU needed
+├── requirements.txt              # runtime (pipeline)
+└── requirements-dev.txt          # light deps for the unit tests / CI
 ```
 
-## Quickstart
+## 2. Documentation
 
-**Unit tests (laptop or Colab, no GPU):**
+- [`docs/architecture.md`](docs/architecture.md) - stages, classes and parameters, JSON data contracts,
+  LayoutXLM architecture, field-extraction design, limitations.
+- [`docs/dataset.md`](docs/dataset.md) - MC-OCR 2021 annotations, preprocessing steps, split figures, known
+  issues, data-use policy (train / validation / test).
+- [`docs/reports/`](docs/reports/) - project plan with the rubric check, latest status, weekly reports.
 
-```bash
-pip install -r requirements-dev.txt
-python -m unittest discover -s tests -t . -v
-```
+## 3. Data preprocessing steps
 
-On Colab, clone the repo, `%cd QuetHoaDon`, and prefix both commands with `!`.
+Dataset: [MC-OCR 2021](https://www.kaggle.com/datasets/domixi1989/vietnamese-receipts-mc-ocr-2021) (Kaggle,
+`domixi1989/vietnamese-receipts-mc-ocr-2021`). It is not stored in the repo.
 
-**Dataset manifests and splits:**
+**Step 1 - clean annotations, manifests and an invoice-level 80/10/10 split** (`src/preprocessing/annotation_parser.py`,
+`dataset_preparer.py`): parses the `|||`-separated texts/labels/polygons, fixes the `TOTAL_TOTAL_COST` label typo,
+drops empty / invalid records and checks that every image exists.
 
 ```bash
 python scripts/prepare_dataset.py --csv <dataset>/mcocr_train_df.csv \
     --images <dataset>/train_images/train_images --out outputs/dataset
 ```
 
-**Run the pipeline (Colab, GPU):** open `notebooks/02_pipeline_colab.ipynb`, run the install cells, then the
-*smoke test* (5 images) **before** the full run. The runner resumes after a disconnect and stops early if more
-than half of the first images fail.
+**Step 2 - image preprocessing + OCR** (Stage 0-2, run by `notebooks/02_pipeline_colab.ipynb`): resize to 1280 px,
+deskew, CLAHE + bilateral filter, then CRAFT + VietOCR; one `<id>.json` per image.
 
-## Evaluation (what MC-OCR can and cannot measure)
+![Before / after Stage 0](assets/preprocessing_before_after.jpg)
 
-MC-OCR annotates only `SELLER`, `ADDRESS`, `TIMESTAMP`, `TOTAL_COST`. Therefore:
+**Step 3 - BIO token dataset for LayoutXLM** (`src/preprocessing/token_dataset.py`): splits OCR lines into words,
+normalises boxes to [0, 1000], gives each word the label of the annotation polygon that contains it and writes
+`train/validation/test.jsonl` plus a label-coverage report.
 
-- field-level P/R/F1 and exact match: the four annotated fields only;
-- detection **recall** on annotated regions (precision is not measurable - unannotated text would count as false positives);
-- CER/WER on regions matched to an annotation;
-- `ITEM_NAME`, `ITEM_PRICE`, `QUANTITY` have no ground truth: qualitative evaluation only.
+```bash
+python scripts/build_token_dataset.py --csv <dataset>/mcocr_train_df.csv \
+    --ocr-dir pipeline_results/ocr_annotations \
+    --split-manifest outputs/dataset/mcocr_manifest_split.csv --out outputs/token_dataset_v1
+```
+
+Details: [`docs/dataset.md`](docs/dataset.md#preprocessing-steps).
+
+## 4. Model development notebooks / scripts
+
+| Notebook / script | Purpose | Where |
+| --- | --- | --- |
+| `notebooks/01_mc_ocr_eda.ipynb` | dataset audit: label taxonomy, missing images, resolutions, entity counts, samples | Kaggle / local |
+| `notebooks/02_pipeline_colab.ipynb` | install → build pipeline from `configs/` → 5-image smoke test → full resumable run → inspect a result | Colab GPU |
+| `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
+
+Models: CRAFT and VietOCR (`vgg_transformer`) are pretrained and used for inference only; LayoutXLM-base
+(`microsoft/layoutxlm-base`) will be fine-tuned for BIO token classification on the token dataset (Week 4 plan in
+[`docs/reports/week4_plan.md`](docs/reports/week4_plan.md)). Hyper-parameters are in `configs/model.yaml`.
+
+**Evaluation (what MC-OCR can and cannot measure).** MC-OCR annotates only `SELLER`, `ADDRESS`, `TIMESTAMP`,
+`TOTAL_COST`, so: field-level P/R/F1 and exact match on those four fields; detection **recall** on annotated regions
+(precision is not measurable); CER/WER on matched regions; `ITEM_NAME`, `ITEM_PRICE`, `QUANTITY` only qualitatively.
+
+## 5. Instructions for running the project
+
+### 5.1 One image (CLI)
+
+Install as in the [Quickstart](#quickstart-3-commands), then:
+
+```bash
+python scripts/run_pipeline.py                                    # bundled sample, prints JSON
+python scripts/run_pipeline.py --image path/to/receipt.jpg --output outputs/receipt.json --device cpu
+```
+
+`craft-text-detector` and `vietocr` must be installed with `--no-deps` (they pin old torch/numpy versions); see the
+comments in `requirements.txt`.
+
+### 5.2 Full dataset (Colab GPU)
+
+Open `notebooks/02_pipeline_colab.ipynb`, run the install cells (they also build detectron2 for LayoutXLM), then
+the **smoke test** (5 images) before the full run. The runner resumes after a disconnect and stops early if more than
+half of the first images fail. Then run Step 1 and Step 3 of [section 3](#3-data-preprocessing-steps).
+
+### 5.3 Unit tests (no GPU)
+
+```bash
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -t . -v
+```
+
+The same command runs in CI on every push / pull request.
 
 ## Team
 

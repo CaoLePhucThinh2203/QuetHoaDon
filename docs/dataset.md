@@ -33,6 +33,21 @@ Figures reported in the project plan from the Kaggle run - **re-verify with the 
 The plan's `label_distribution` lists only `ADDRESS` (1880) and `SELLER` (1153), which sums to 3033, not 6585:
 `TIMESTAMP` and `TOTAL_COST` counts are missing from that excerpt. Rerun the script and record all four.
 
+## Preprocessing steps
+
+| Step | Code | Input -> output |
+| --- | --- | --- |
+| 1. Parse and clean annotations | `src/preprocessing/annotation_parser.py` | CSV row -> texts, labels, `xywh` polygons; normalises `TOTAL_TOTAL_COST`, drops empty / invalid records |
+| 2. Manifests + invoice-level split | `scripts/prepare_dataset.py` (`src/preprocessing/dataset_preparer.py`) | CSV + images -> `mcocr_manifest_split.csv`, `dataset_summary.json` |
+| 3. Image preprocessing (Stage 0) | `src/preprocessing/image_preprocessor.py` | photo -> resized (longest side 1280), deskewed, CLAHE + bilateral-filtered image |
+| 4. OCR run (Stages 1-2) | `notebooks/02_pipeline_colab.ipynb` | images -> `<id>.json` with OCR words and boxes |
+| 5. BIO token dataset | `scripts/build_token_dataset.py` (`src/preprocessing/token_dataset.py`) | OCR JSON + annotations -> `train/validation/test.jsonl` (words, boxes normalised to [0, 1000], BIO tags) + label-coverage report |
+
+Stage 0 on the bundled sample (`assets/samples/sample_receipt.jpg`, synthetic): the 4° tilt is removed and contrast
+is equalised before detection.
+
+![Before / after Stage 0](../assets/preprocessing_before_after.jpg)
+
 ## Known issues
 
 - **Image count mismatch.** The Colab notebook found 1044 images (path filter `data0.7`) while 1153 invoices are

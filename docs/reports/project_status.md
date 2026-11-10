@@ -30,7 +30,7 @@
 
 ## 3. Kết quả từ notebook DesignThinking (ngoài repo)
 
-Notebook gồm Stage 0-3 giống `notebooks/QuetHoaDon.ipynb` (LayoutXLM **tắt**), cộng thêm Stage 4-7:
+Notebook gồm Stage 0-3 giống pipeline trong `src/` (notebook nháp `QuetHoaDon.ipynb` đã xóa) (LayoutXLM **tắt**), cộng thêm Stage 4-7:
 
 | Stage | Nội dung |
 | --- | --- |
@@ -118,7 +118,7 @@ trần recall; LayoutXLM cần detectron2 → chỉ chạy trên Colab; thống 
 | 2 | Docx: `label_distribution` chỉ có ADDRESS + SELLER (3033 ≠ 6585) | Chạy lại `scripts/prepare_dataset.py` trên Colab, sửa docx |
 | 3 | Docx Tuần 2 nói LayoutLM *trích xuất*, Tuần 3 nói LayoutXLM *trích đặc trưng* + phân cụm | Thống nhất theo mục 4 |
 | 4 | Docx mục 4.2 bỏ TIMESTAMP, có ITEM_NAME / ITEM_PRICE / QUANTITY (không có nhãn) | Thống nhất 4 trường có nhãn + item lines đánh giá định tính |
-| 5 | Docs cũ theo hướng unsupervised: `docs/dataset_documentation.md`, `docs/multi_dataset_architecture.md`, `docs/preprocessing.md`, `reports/project_leader_handover.md` | Xóa hoặc chuyển vào `docs/archive/` |
+| 5 | Docs cũ theo hướng unsupervised: `docs/dataset_documentation.md`, `docs/multi_dataset_architecture.md`, `docs/preprocessing.md`, `reports/project_leader_handover.md` | **Đã xóa** khỏi repo (còn trong lịch sử Git) |
 | 6 | Notebook DesignThinking chưa có trong repo nhưng là nguồn của số B0 | Đưa vào `notebooks/` hoặc port Stage 4 vào `src/extraction/` |
 | 7 | Chưa kiểm tra ảnh gần trùng giữa các split; manifest lưu đường dẫn tuyệt đối | Như WS-A trong `week4_plan.md` |
 

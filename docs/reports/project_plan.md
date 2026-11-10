@@ -50,9 +50,9 @@
 | --- | --- | --- |
 | 1. Giải thích kiến trúc model | 4.1, 4.2, 2.4 | `docs/architecture.md` |
 | 2. Quá trình train: siêu tham số, hàm loss, khó khăn | 4.2, 4.5, 0.5 | `docs/training.md`, `outputs/train/run_*.json` |
-| 3. Chỉ số đánh giá: Accuracy, F1, RMSE, AUC | 2.1 | `reports/week4_evaluation.md`, `outputs/metrics/*.json` |
-| 4. So sánh baseline (B0) với model cải tiến (M1b) | 2.4, 4.3, 5.1 | `reports/week4_evaluation.md` |
-| 5. Phân tích lỗi và kế hoạch cải tiến | 8.3, 4.4–4.11 | `reports/week4_error_analysis.md` |
+| 3. Chỉ số đánh giá: Accuracy, F1, RMSE, AUC | 2.1 | `docs/reports/week4_evaluation.md`, `outputs/metrics/*.json` |
+| 4. So sánh baseline (B0) với model cải tiến (M1b) | 2.4, 4.3, 5.1 | `docs/reports/week4_evaluation.md` |
+| 5. Phân tích lỗi và kế hoạch cải tiến | 8.3, 4.4–4.11 | `docs/reports/week4_error_analysis.md` |
 
 ### Tuần 5 (yêu cầu: giải pháp end-to-end)
 

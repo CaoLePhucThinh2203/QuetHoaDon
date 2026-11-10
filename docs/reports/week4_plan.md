@@ -29,9 +29,9 @@ Sau khi chốt: cập nhật `configs/config.yaml` (`data_policy`), `README.md`,
 | --- | --- | --- |
 | 1 | Giải thích kiến trúc model | `docs/architecture.md` §4-5 (cập nhật head, số nhãn, sơ đồ) |
 | 2 | Quá trình huấn luyện: hyperparameters, loss, khó khăn | `docs/training.md` + `outputs/train/*.json` (config, learning curve) |
-| 3 | Chỉ số đánh giá | `reports/week4_evaluation.md` + `outputs/metrics/*.json` |
-| 4 | So sánh baseline và improved | bảng trong `reports/week4_evaluation.md` |
-| 5 | Phân tích lỗi + kế hoạch cải tiến | `reports/week4_error_analysis.md` |
+| 3 | Chỉ số đánh giá | `docs/reports/week4_evaluation.md` + `outputs/metrics/*.json` |
+| 4 | So sánh baseline và improved | bảng trong `docs/reports/week4_evaluation.md` |
+| 5 | Phân tích lỗi + kế hoạch cải tiến | `docs/reports/week4_error_analysis.md` |
 
 ## 2. Cái gì đo được trên MC-OCR
 
@@ -119,7 +119,7 @@ cài detectron2 mất vài phút mỗi phiên.
 ### WS-D — Phân tích & báo cáo · Người phụ trách: ______
 
 1. Cập nhật `docs/architecture.md` (kiến trúc M1) và viết `docs/training.md`.
-2. Viết `reports/week4_evaluation.md`: bảng B0 vs M1 + trả lời RQ1/RQ3.
+2. Viết `docs/reports/week4_evaluation.md`: bảng B0 vs M1 + trả lời RQ1/RQ3.
 3. Phân tích lỗi: lấy ≥ 50 hóa đơn sai, phân loại nguyên nhân (detection bỏ sót / OCR sai / gán nhãn sai / cắt 512 token / luật sai), đếm tỉ lệ từng loại, kèm ví dụ.
 4. Viết kế hoạch cải tiến xếp theo mức tác động, nêu rõ việc nào chuyển sang Tuần 5.
 5. Cập nhật slide trình bày Tuần 4.

@@ -9,7 +9,8 @@ import os
 import time
 import traceback
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 @dataclass
@@ -48,13 +49,19 @@ def _default_save_tensor(obj: Any, path: str) -> None:
 
 
 class ReceiptPipeline:
-    def __init__(self, preprocessor, detector, recognizer, extractor, dirs: OutputDirs,
+    """Stages 0-3 of the receipt pipeline: preprocess -> detect (CRAFT) -> recognise (VietOCR) -> features.
+
+    ``predict()`` handles one image in memory (used by ``scripts/run_pipeline.py``); ``run()`` handles a dataset
+    with checkpointing. ``extractor=None`` stops after OCR (no LayoutXLM / detectron2 needed).
+    """
+
+    def __init__(self, preprocessor, detector, recognizer, extractor, dirs: Optional[OutputDirs] = None,
                  save_tensor: Callable[[Any, str], None] = _default_save_tensor) -> None:
         self.preprocessor = preprocessor
         self.detector = detector
         self.recognizer = recognizer
         self.extractor = extractor        # may be None -> OCR only
-        self.dirs = dirs
+        self.dirs = dirs                  # only needed by run() / process_one()
         self._save_tensor = save_tensor
 
     # ---- checkpointing -------------------------------------------------------------
@@ -72,14 +79,13 @@ class ReceiptPipeline:
         return os.path.exists(pt_path) or self.extractor is None
 
     # ---- one image -----------------------------------------------------------------
-    def process_one(self, img_path: str, file_id: str) -> Dict[str, int]:
+    def _infer(self, img_path: Union[str, Path], file_id: str) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]], Any]:
+        """Run stages 0-3 in memory. Returns ``(meta, features or None, preprocessed BGR image)``."""
         import cv2
         from PIL import Image
 
-        json_path, pt_path, img_out = self.dirs.paths(file_id)
         t0 = time.time()
-        pre = self.preprocessor.process(img_path)
-        cv2.imwrite(img_out, pre.image, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        pre = self.preprocessor.process(str(img_path))
         h, w = pre.image.shape[:2]
         t1 = time.time()
 
@@ -99,26 +105,63 @@ class ReceiptPipeline:
             "ocr_items": [it.to_dict() for it in items],
         }
 
+        feats = None
         if items and self.extractor is not None:
             feats = self.extractor.extract(Image.fromarray(cv2.cvtColor(pre.image, cv2.COLOR_BGR2RGB)), items)
             meta["possibly_truncated"] = bool(feats.get("possibly_truncated", False))
-            if feats.get("last_hidden_state") is not None:
-                self._save_tensor({k: feats[k] for k in (
-                    "last_hidden_state", "input_ids", "normalized_bboxes", "attention_mask", "words")
-                    } | {"file_id": file_id}, pt_path)
         t4 = time.time()
 
         meta["timing_sec"] = {"preprocess": round(t1 - t0, 3), "detect": round(t2 - t1, 3),
                               "ocr": round(t3 - t2, 3), "features": round(t4 - t3, 3),
                               "total": round(t4 - t0, 3)}
+        return meta, feats, pre.image
+
+    def predict(self, img_path: Union[str, Path]) -> Dict[str, Any]:
+        """Run the pipeline on one image without writing anything to disk.
+
+        Args:
+            img_path: path to a receipt image (jpg/png).
+
+        Returns:
+            The OCR result dictionary (same schema as ``<id>.json``, see ``docs/architecture.md`` section 3):
+            ``file_id``, shapes, ``skew_angle``, ``n_detected``, ``n_text_regions``, ``timing_sec`` and
+            ``ocr_items`` (``text``, ``ocr_confidence``, ``bbox`` ... in reading order).
+        """
+        return self._infer(img_path, Path(img_path).stem)[0]
+
+    def process_one(self, img_path: Union[str, Path], file_id: str) -> Dict[str, int]:
+        """Process one image and write ``<id>.jpg``, ``<id>.pt`` (if features) and ``<id>.json`` (last)."""
+        import cv2
+
+        json_path, pt_path, img_out = self.dirs.paths(file_id)
+        meta, feats, image = self._infer(img_path, file_id)
+        cv2.imwrite(img_out, image, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        if feats is not None and feats.get("last_hidden_state") is not None:
+            self._save_tensor({k: feats[k] for k in (
+                "last_hidden_state", "input_ids", "normalized_bboxes", "attention_mask", "words")
+                } | {"file_id": file_id}, pt_path)
         _atomic_json(meta, json_path)     # last: marks the image as finished
-        return {"detected": len(regions), "ocr": len(items)}
+        return {"detected": meta["n_detected"], "ocr": meta["n_text_regions"]}
 
     # ---- many images ---------------------------------------------------------------
-    def run(self, paths: List[str], abort_after: int = 20, abort_fail_ratio: float = 0.5,
+    def run(self, paths: List[Union[str, Path]], abort_after: int = 20, abort_fail_ratio: float = 0.5,
             show_errors: int = 3, progress: bool = True) -> Tuple[Dict[str, int], List[Tuple[str, str]]]:
-        """Process ``paths``; stop early if more than ``abort_fail_ratio`` of the first
-        ``abort_after``+ attempted images fail (so a systematic bug shows up in seconds)."""
+        """Process many images, writing one result set per image into ``self.dirs``.
+
+        Already finished images are skipped (resume after a disconnect). The run stops early if more than
+        ``abort_fail_ratio`` of the first ``abort_after``+ attempted images fail, so a systematic bug shows up
+        in seconds instead of after the whole dataset.
+
+        Args:
+            paths: image paths; the file stem is used as ``file_id``.
+            abort_after: minimum number of attempted images before the early-stop rule applies.
+            abort_fail_ratio: failure ratio above which the run stops.
+            show_errors: number of tracebacks printed during the run (all are saved to ``failed.json``).
+            progress: show a tqdm progress bar.
+
+        Returns:
+            ``(stats, failed)``: counts ``{"ok", "empty", "skipped", "failed"}`` and ``[(file_id, traceback)]``.
+        """
         stats = {"ok": 0, "empty": 0, "skipped": 0, "failed": 0}
         failed: List[Tuple[str, str]] = []
         t0 = time.time()
@@ -131,7 +174,7 @@ class ReceiptPipeline:
             write = tqdm.write
 
         for p in iterator:
-            file_id = os.path.splitext(os.path.basename(p))[0]
+            file_id = Path(p).stem
             if self.is_done(file_id):
                 stats["skipped"] += 1
                 continue
