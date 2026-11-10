@@ -66,6 +66,7 @@ QuetHoaDon/
 │   ├── 01_mc_ocr_eda.ipynb     # dataset audit (run it and keep the outputs)
 │   └── 02_pipeline_colab.ipynb # thin runner: install -> build pipeline -> smoke test -> full run
 ├── reports/
+│   ├── project_plan.md           # rubric check, models to compare, full task list by phase
 │   ├── project_status.md         # latest status, baseline numbers, proposed direction
 │   ├── week3_progress_report.md  # what is done / missing, repo audit, model assessment
 │   └── week4_plan.md             # tasks, owners, metrics, deliverables for Week 4
