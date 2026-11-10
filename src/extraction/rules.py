@@ -16,6 +16,10 @@ from typing import Dict, List, Optional, Sequence
 from src.extraction.decode import amount_candidates
 
 _DATE_WORD = re.compile(r"\d{1,2}[/\-.]\d{1,2}[/\-.](\d{4}|\d{2})")
+# OCR often splits "14/08/2020" into "14/08/2" + "2020" (the last digit is read twice)
+DATE_SPLIT_RE = re.compile(r"(\d{1,2})[/\-.](\d{1,2})[/\-.]\d\s*(20\d{2})")
+_SPLIT_HEAD_WORD = re.compile(r"^\d{1,2}[/\-.]\d{1,2}[/\-.]\d$")
+_YEAR_WORD = re.compile(r"^20\d{2}$")
 # accent-free, lower-case keywords; matched on the concatenation of 1-3 consecutive words
 _TOTAL_KEYS = ("tongcong", "tongtien", "tongthanhtoan", "thanhtoan", "tongso", "total", "phaitra",
                "canthanhtoan", "tongtt", "tongcongtien", "tong")
@@ -51,11 +55,17 @@ def rule_total(words: Sequence[str], window: int = 6) -> Optional[str]:
     return best[1] if best else None
 
 
+def has_date(text: Optional[str]) -> bool:
+    return bool(text) and bool(_DATE_WORD.search(text) or DATE_SPLIT_RE.search(text))
+
+
 def rule_timestamp(words: Sequence[str]) -> Optional[str]:
-    """First date-shaped word, or ``None``."""
-    for w in words:
+    """First date-shaped word (or OCR-split pair such as ``14/08/2 2020``), or ``None``."""
+    for i, w in enumerate(words):
         if _DATE_WORD.search(w):
             return w
+        if i + 1 < len(words) and _SPLIT_HEAD_WORD.match(w.strip()) and _YEAR_WORD.match(words[i + 1].strip()):
+            return f"{w} {words[i + 1]}"
     return None
 
 
@@ -79,6 +89,8 @@ def fill_missing(records: Sequence[Dict], preds: Dict[str, Dict[str, Optional[st
         for field, value in apply_rules(rec["words"]).items():
             if value and (not p.get(field) or field in prefer_rule):
                 p[field] = value
+        if "TIMESTAMP" in prefer_rule and p.get("TIMESTAMP") and not has_date(p["TIMESTAMP"]):
+            p["TIMESTAMP"] = None           # a timestamp without a date is noise (counts as a false positive)
         out[rec["img_id"]] = p
     return out
 

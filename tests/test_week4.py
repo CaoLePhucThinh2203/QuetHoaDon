@@ -64,11 +64,19 @@ class TestRules(unittest.TestCase):
 
     def test_date_rule_beats_the_model_but_not_a_missing_date(self):
         recs = [{"img_id": "a", "words": ["Ngay", "01/02/2020"]}, {"img_id": "b", "words": ["abc"]}]
-        out = fill_missing(recs, {"a": {"TIMESTAMP": "xx"}, "b": {"TIMESTAMP": "keep"}})
+        out = fill_missing(recs, {"a": {"TIMESTAMP": "xx"}, "b": {"TIMESTAMP": "05/05/2020"}})
         self.assertEqual(out["a"]["TIMESTAMP"], "01/02/2020")
-        self.assertEqual(out["b"]["TIMESTAMP"], "keep")
+        self.assertEqual(out["b"]["TIMESTAMP"], "05/05/2020")
         out = fill_missing(recs, {"a": {"TIMESTAMP": "xx"}}, prefer_rule=())
         self.assertEqual(out["a"]["TIMESTAMP"], "xx")
+
+    def test_timestamp_without_a_date_is_dropped_and_split_dates_are_joined(self):
+        recs = [{"img_id": "a", "words": ["Ngay", "14/08/2", "2020", "08:29"]}, {"img_id": "b", "words": ["abc"]}]
+        out = fill_missing(recs, {"a": {}, "b": {"TIMESTAMP": "Ngay ban: junk"}})
+        self.assertEqual(out["a"]["TIMESTAMP"], "14/08/2 2020")
+        self.assertIsNone(out["b"]["TIMESTAMP"])
+        self.assertEqual(fe.normalize_date("Ngày bân: 13/08/2 2020 10: 19"), "13/08/2020")
+        self.assertEqual(fe.normalize_date("14/08/2020 08:29"), "14/08/2020")
 
     def test_gt_amount_ignores_barcodes(self):
         self.assertEqual(fe.gt_amount(["Tong", "74,000", "0902543800123"]), 74000)

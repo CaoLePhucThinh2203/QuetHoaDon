@@ -17,7 +17,7 @@ import numpy as np
 
 from src.evaluation.metrics import FIELDS, cer, field_match, field_scores, normalize_amount, normalize_text, prf1
 from src.extraction.decode import amount_candidates, predict_fields
-from src.extraction.rules import fill_missing
+from src.extraction.rules import DATE_SPLIT_RE, fill_missing
 from src.preprocessing.token_dataset import ID2LABEL, LABEL2ID, LABELS
 
 _TOTAL_IDS = [LABEL2ID["B-TOTAL_COST"], LABEL2ID["I-TOTAL_COST"]]
@@ -143,7 +143,7 @@ def total_cost_errors(records: Sequence[Dict[str, Any]], preds: Dict[str, Dict[s
 # ---------------------------------------------------------------------------------- soft decoding
 def normalize_date(text: Optional[str]) -> Optional[str]:
     """First ``dd/mm/yyyy`` date found in ``text`` (2-digit years become 20yy), or ``None``."""
-    m = _DATE_RE.search(text or "")
+    m = _DATE_RE.search(text or "") or DATE_SPLIT_RE.search(text or "")
     if not m:
         return None
     day, month, year = m.groups()
