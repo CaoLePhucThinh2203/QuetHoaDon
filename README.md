@@ -30,8 +30,7 @@ tests, see [5.3](#53-unit-tests-no-gpu).
 
 Entering expenses by hand is slow and error-prone, so many people give up tracking their spending. This project
 combines OCR and Key Information Extraction to read photos of Vietnamese retail receipts, extract the seller,
-address, date and total, and assign the receipt to a spending category (food / move / study / shop / other) for the
-FinBud app.
+address, date and total, and assign the receipt to a spending category (food / move / study / shop / other).
 
 - **RQ1 (Robustness):** How much do image preprocessing (denoising, lighting/contrast correction) and data
   augmentation improve text recognition on blurred, wrinkled or poorly lit receipts?
@@ -129,8 +128,7 @@ Field-level macro F1 on the held-out test split (116 receipts; lenient matching,
 | M1b: fine-tuned LayoutXLM | 0.658 [0.60, 0.71] | 32 / 116 |
 
 About 70 % of the remaining errors come from OCR text or annotations. Roughly 10 % of validation / test receipts have a
-near-duplicate in train (macro F1 without them: M1b 0.642). Details, protocol and limits:
-[`reports/week4_evaluation.md`](reports/week4_evaluation.md); how to train and score: [`docs/training.md`](docs/training.md).
+near-duplicate in train (macro F1 without them: M1b 0.642). How to train and score: [`docs/training.md`](docs/training.md).
 
 ## 4. Model development notebooks / scripts
 

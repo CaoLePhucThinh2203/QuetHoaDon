@@ -1,8 +1,7 @@
 # Training and evaluation guide (Week 4)
 
 Models: **B0** (Week 3 pipeline: frozen LayoutXLM features, K-means, clusters mapped to fields), **M1a** (frozen encoder +
-linear head), **M1b** (LayoutXLM fully fine-tuned, `LayoutLMv2ForTokenClassification`, 9 BIO labels). Results:
-[`reports/week4_evaluation.md`](../reports/week4_evaluation.md).
+linear head), **M1b** (LayoutXLM fully fine-tuned, `LayoutLMv2ForTokenClassification`, 9 BIO labels).
 
 ## Environment
 
