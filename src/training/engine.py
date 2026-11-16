@@ -241,6 +241,9 @@ def train_model(cfg: Dict[str, Any], train_records: Sequence[Dict[str, Any]], va
             scaler.scale(loss / cfg["grad_accum"]).backward()
             loss_sum += float(loss.detach())
             n_batches += 1
+            if (i + 1) % max(1, len(loader) // 10) == 0 or (i + 1) == len(loader):    # progress about every 10 %
+                print(f"  epoch {epoch}/{cfg['epochs']}  {100 * (i + 1) // len(loader)}%  "
+                      f"train_loss={loss_sum / n_batches:.4f}  {time.time() - t0:.0f}s", flush=True)
             if (i + 1) % cfg["grad_accum"] == 0 or (i + 1) == len(loader):
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], cfg["grad_clip"])
