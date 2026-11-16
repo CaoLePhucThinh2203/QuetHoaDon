@@ -41,6 +41,16 @@ class TestProcess(unittest.TestCase):
             self.assertAlmostEqual(res.scale, 0.5)
             self.assertEqual(res.original.shape[:2], (2000, 1000))
 
+    def test_process_array_matches_process(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "page.jpg")
+            cv2.imwrite(path, text_page(0))
+            pre = ImagePreprocessor(target_max_dim=500, enhance=True, max_skew=0.0)
+            a = pre.process(path)
+            b = pre.process_array(cv2.imread(path))
+            self.assertTrue((a.image == b.image).all())
+            self.assertEqual((a.scale, a.skew_angle), (b.scale, b.skew_angle))
+
     def test_missing_file_raises(self):
         with self.assertRaises(FileNotFoundError):
             ImagePreprocessor().process("/nonexistent/x.jpg")

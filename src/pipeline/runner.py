@@ -116,6 +116,11 @@ class ReceiptPipeline:
                               "total": round(t4 - t0, 3)}
         return meta, feats, pre.image
 
+    def infer(self, img_path: Union[str, Path]) -> Tuple[Dict[str, Any], Any]:
+        """OCR result and the preprocessed BGR image (the image LayoutXLM was trained on); writes nothing."""
+        meta, _, image = self._infer(img_path, Path(img_path).stem)
+        return meta, image
+
     def predict(self, img_path: Union[str, Path]) -> Dict[str, Any]:
         """Run the pipeline on one image without writing anything to disk.
 
