@@ -106,3 +106,21 @@ resize only, deskew, contrast (CLAHE + bilateral filter) and both; blur, darkeni
 measures the recogniser under each preprocessing setting rather than the end-to-end OCR error.
 `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` runs all of this on Kaggle; its cell 9 also checks that the
 regenerated split is the one the model was trained with.
+
+## Accuracy baseline and offline decoding (validation only)
+
+```bash
+# score a checkpoint and keep the word probabilities
+python scripts/evaluate_layoutxlm.py --checkpoint runs/m1b_v2_*/best --token-dir $TOK --image-dir $IMG --split validation \
+    --save-probs eval/m1b_v2_val_probs.npz --out eval/m1b_v2_val_now.json
+# decode the saved probabilities without GPU; with --reference it must reproduce that report (PASS)
+python scripts/decode_from_probs.py --token-dir $TOK --split validation --probs eval/m1b_v2_val_probs.npz \
+    --reference eval/m1b_v2_val_now.json --out eval/decoded_val.json
+# strict reading accuracy (what an app user sees: exact amount, exact date and time, exact text) for saved reports
+python scripts/score_app_metrics.py --token-dir $TOK --split validation --report M1b=eval/m1b_v2_val.json --out eval/app_metrics_val.json
+# first sort of OCR-text errors for the manual review
+python scripts/ocr_error_catalog.py --report eval/decoded_val.json --out-dir eval/ocr_errors
+```
+
+`notebooks/05_phase0_baseline_kaggle.ipynb` runs this sequence. Decoding or rule changes are scored on the saved
+probabilities before any model is retrained; the test split needs `--allow-test` and is not part of this sequence.

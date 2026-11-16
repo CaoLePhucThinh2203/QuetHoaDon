@@ -74,7 +74,8 @@ QuetHoaDon/
 │   ├── 01_mc_ocr_eda.ipynb       # dataset audit
 │   ├── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
 │   ├── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
-│   └── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
+│   ├── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
+│   └── 05_phase0_baseline_kaggle.ipynb  # accuracy baseline: strict app metrics, saved probabilities, error catalogue
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
@@ -90,7 +91,11 @@ QuetHoaDon/
 │   ├── draw_errors.py            # draw wrong fields on the receipt for manual review
 │   ├── extract_receipt.py        # end-to-end demo: photo -> four fields with M1b
 │   ├── measure_latency.py        # latency and size of B0 / M1a / M1b on GPU and CPU
-│   └── ocr_preprocessing_ablation.py  # RQ1: preprocessing vs VietOCR error rate
+│   ├── ocr_preprocessing_ablation.py  # RQ1: preprocessing vs VietOCR error rate
+│   ├── verify_extractor.py       # the demo path must reproduce the scored Week-4 predictions
+│   ├── decode_from_probs.py      # decode saved word probabilities offline, strict app scores, error table
+│   ├── score_app_metrics.py      # strict reading accuracy of saved reports
+│   └── ocr_error_catalog.py      # first sort of OCR-text errors for the manual review
 ├── src/                          # source code (table above)
 ├── tests/                        # 150+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
