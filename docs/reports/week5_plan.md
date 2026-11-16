@@ -71,6 +71,12 @@ cấu hình, kể cả mốc M1b v2:
 | 0.3 | Lưu xác suất từng từ khi chấm (`--save-probs`) để thử hậu xử lý không cần GPU | P0 | Code | File xác suất của validation |
 | 0.4 | Vẽ 30 hóa đơn validation sai và xem tay, phân loại lỗi OCR: dấu tiếng Việt, chữ số, chữ bị tách hoặc dính, dòng bị cắt, dòng bị bỏ sót | P0 | Kaggle + nhóm | Bảng loại lỗi OCR có số đếm |
 
+Giai đoạn 0 đã có code (0.2 đến 0.4): `src/evaluation/app_metrics.py`, `probs_io.py`, `offline_decode.py`, `ocr_errors.py`,
+các script `score_app_metrics.py`, `decode_from_probs.py`, `ocr_error_catalog.py`, cờ `--save-probs` của
+`evaluate_layoutxlm.py`, và notebook `notebooks/05_phase0_baseline_kaggle.ipynb` (cell 3 và 5 là hai cổng kiểm chứng:
+đúng checkpoint, tái lập PASS). Xem tay: mở ảnh trong `error_images_val` và điền cột `manual_type` của tệp
+`ocr_errors_to_review.csv`; phân loại tự động chỉ là gợi ý.
+
 ### Giai đoạn 1. OCR (nâng trần)
 
 | # | Việc | Ưu tiên | Ai | Xong khi |

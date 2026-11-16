@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import torch  # noqa: E402
 from transformers import AutoProcessor  # noqa: E402
 
+from src.evaluation.probs_io import save_probs  # noqa: E402
 from src.training.data import load_jsonl  # noqa: E402
 from src.training.engine import DEFAULTS, evaluate_records, load_model  # noqa: E402
 from src.training.field_eval import build_report, format_report  # noqa: E402
@@ -41,6 +42,8 @@ def main() -> None:
     ap.add_argument("--num-workers", type=int, default=2)
     ap.add_argument("--errors", type=int, default=50, help="How many wrong totals to list for the error analysis")
     ap.add_argument("--max-docs", type=int, default=None, help="Use only the first N receipts (smoke test)")
+    ap.add_argument("--save-probs", default=None,
+                    help=".npz with the word probabilities, for decode_from_probs.py (decoding experiments without GPU)")
     args = ap.parse_args()
 
     if args.split == "test" and not args.allow_test:
@@ -68,6 +71,11 @@ def main() -> None:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2, default=_json_default)
+
+    if args.save_probs:
+        Path(args.save_probs).parent.mkdir(parents=True, exist_ok=True)
+        save_probs(args.save_probs, [r["img_id"] for r in records], [m["probs"] for m in ev["predictions"]])
+        print("word probabilities:", args.save_probs)
 
     print(f"split={args.split}  receipts={report['n_receipts']}  device={device}  "
           f"{report['seconds_per_receipt'] * 1000:.0f} ms / receipt (incl. image loading)")
