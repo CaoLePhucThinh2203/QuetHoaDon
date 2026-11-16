@@ -88,6 +88,10 @@ python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --image receip
 # the same from an existing OCR result and its preprocessed image (no CRAFT / VietOCR)
 python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --ocr-json <id>.json --preprocessed-image <id>.jpg
 
+# check that the demo path reproduces the scored Week-4 predictions on validation (must print PASS)
+python scripts/verify_extractor.py --checkpoint runs/m1b_v2_*/best --token-dir $TOK --image-dir $IMG \
+    --reference eval/m1b_v2_val.json --out eval/verify_extractor_val.json
+
 # latency and size of the LayoutXLM stage on GPU and CPU (RQ3); --b0-model adds B0
 python scripts/measure_latency.py --token-dir $TOK --image-dir $IMG --checkpoint M1b=runs/m1b_v2_*/best --out eval/latency.json
 
@@ -98,4 +102,7 @@ python scripts/ocr_preprocessing_ablation.py --csv $CSV --image-dir $IMG_RAW --s
 
 The extractor decodes with the same functions that scored the Week-4 results. In the ablation, the four configurations are
 resize only, deskew, contrast (CLAHE + bilateral filter) and both; blur, darkening and noise use fixed parameters
-(`src/evaluation/ocr_ablation.py`). `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` runs all of this on Kaggle.
+(`src/evaluation/ocr_ablation.py`). The ablation crops the annotated lines, while the pipeline reads CRAFT boxes, so it
+measures the recogniser under each preprocessing setting rather than the end-to-end OCR error.
+`notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` runs all of this on Kaggle; its cell 9 also checks that the
+regenerated split is the one the model was trained with.
