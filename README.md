@@ -7,10 +7,12 @@ Read a photo of a Vietnamese receipt and extract structured information (seller,
 
 ![Pipeline architecture](assets/pipeline_architecture.png)
 
-> **Status (10/11/2026, Week 3 → 4).** Stages 0–3 (preprocessing, detection, OCR, LayoutXLM features) are
-> implemented in `src/` and unit-tested. Stage 4 (fine-tuned LayoutXLM token classifier) is in progress: the BIO
-> token dataset and the decoding code exist, **no model has been trained yet and no metrics have been measured.**
-> Plan and status: [`docs/reports/`](docs/reports/).
+> **Status (Week 4 done, moving to Week 5).** The full pipeline runs: preprocessing → CRAFT → VietOCR → LayoutXLM
+> features → field extraction. Three systems were trained and scored on the same OCR output and split: baseline B0
+> (Week 3 pipeline), M1a (frozen LayoutXLM + linear head) and M1b (fine-tuned LayoutXLM). On the test split M1b reaches
+> macro F1 0.658 against 0.352 for B0, see [Results](#results-week-4-one-seed). Still open: an end-to-end demo,
+> OCR fine-tuning (RQ1), the spending-category classifier and more seeds. Plan and status:
+> [`docs/reports/`](docs/reports/).
 
 ## Quickstart (3 commands)
 
@@ -48,9 +50,10 @@ All logic lives in `src/`, one package per pipeline stage; notebooks and scripts
 | 1 Detection (CRAFT) | `src/detection/` | implemented; logic unit-tested, model call verified on Colab |
 | 2 OCR (VietOCR) | `src/recognition/` | implemented; logic unit-tested, model call verified on Colab |
 | 3 Features (LayoutXLM) | `src/features/` | implemented, not unit-tested end to end |
-| 4 Field extraction | `src/extraction/` | output schema + BIO decoding done; classifier not trained yet |
-| Orchestration | `src/pipeline/runner.py` | `ReceiptPipeline.predict()` (one image), `.run()` (dataset, resumable) |
-| Evaluation | `src/evaluation/metrics.py` | CER/WER, detection recall, field P/R/F1; not yet run on real predictions |
+| 4 Field extraction | `src/extraction/`, `src/training/` | BIO decoding, soft decoding and keyword / date rules; M1b and M1a trained and scored (Kaggle T4) |
+| Baseline B0 | `src/baseline/b0.py` | frozen features + K-means + cluster-to-field mapping; scored on validation and test |
+| Orchestration | `src/pipeline/runner.py` | `ReceiptPipeline.predict()` (one image, OCR only), `.run()` (dataset, resumable) |
+| Evaluation | `src/evaluation/`, `src/training/field_eval.py` | CER/WER, detection recall, field P/R/F1 (strict and OCR-tolerant), bootstrap CI, error causes |
 | Shared | `src/common/` | bbox utilities, config loader |
 
 ```text
@@ -64,16 +67,28 @@ QuetHoaDon/
 ├── docs/
 │   ├── architecture.md           # pipeline, data contracts, model architecture, limits
 │   ├── dataset.md                # MC-OCR facts, preprocessing steps, split, data-use policy
+│   ├── training.md               # how to train, score and compare the models (commands, settings)
+│   ├── archive/                  # documents of the earlier unsupervised direction (history only)
 │   └── reports/                  # project plan, status, weekly reports
 ├── notebooks/
 │   ├── 01_mc_ocr_eda.ipynb       # dataset audit
-│   └── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
+│   ├── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
+│   └── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
-│   └── run_pipeline.py           # one image -> JSON (CLI entrypoint)
+│   ├── run_pipeline.py           # one image -> OCR JSON (CLI entrypoint)
+│   ├── train_layoutxlm.py        # M1b (fine-tune) and M1a (--freeze-encoder)
+│   ├── run_baseline_b0.py        # baseline B0 (features, K-means, cluster-to-field)
+│   ├── evaluate_layoutxlm.py     # field-level scoring of a checkpoint
+│   ├── compare_models.py         # comparison table with paired bootstrap
+│   ├── error_analysis.py         # error causes per field
+│   ├── find_duplicates.py        # near-duplicate receipts across splits
+│   ├── rescore_without_duplicates.py
+│   ├── aggregate_seeds.py        # mean and standard deviation over seeds
+│   └── draw_errors.py            # draw wrong fields on the receipt for manual review
 ├── src/                          # source code (table above)
-├── tests/                        # 100+ unit tests, no GPU needed
+├── tests/                        # 150+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
 └── requirements-dev.txt          # light deps for the unit tests / CI
 ```
@@ -136,11 +151,14 @@ near-duplicate in train (macro F1 without them: M1b 0.642). How to train and sco
 | --- | --- | --- |
 | `notebooks/01_mc_ocr_eda.ipynb` | dataset audit: label taxonomy, missing images, resolutions, entity counts, samples | Kaggle / local |
 | `notebooks/02_pipeline_colab.ipynb` | install → build pipeline from `configs/` → 5-image smoke test → full resumable run → inspect a result | Colab GPU |
+| `notebooks/03_train_evaluate_kaggle.ipynb` | train M1b / M1a, run B0, score, compare, error analysis | Kaggle GPU |
 | `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
+| `scripts/train_layoutxlm.py`, `run_baseline_b0.py`, `evaluate_layoutxlm.py`, `compare_models.py` | train and score the three systems | GPU for training and scoring |
 
 Models: CRAFT and VietOCR (`vgg_transformer`) are pretrained and used for inference only; LayoutXLM-base
-(`microsoft/layoutxlm-base`) will be fine-tuned for BIO token classification on the token dataset (Week 4 plan in
-[`docs/reports/week4_plan.md`](docs/reports/week4_plan.md)). Hyper-parameters are in `configs/model.yaml`.
+(`microsoft/layoutxlm-base`) is fine-tuned for BIO token classification on the token dataset (M1b), or used with a
+frozen encoder and a trained linear head (M1a). Commands and settings: [`docs/training.md`](docs/training.md).
+Preprocessing and detection hyper-parameters are in `configs/model.yaml`.
 
 **Evaluation (what MC-OCR can and cannot measure).** MC-OCR annotates only `SELLER`, `ADDRESS`, `TIMESTAMP`,
 `TOTAL_COST`, so: field-level P/R/F1 and exact match on those four fields; detection **recall** on annotated regions
@@ -174,6 +192,23 @@ python -m unittest discover -s tests -t . -v
 ```
 
 The same command runs in CI on every push / pull request.
+
+### 5.4 Reproducibility
+
+The reported results were produced on a Kaggle notebook (GPU T4, Internet on) with the versions below; other versions
+may need small changes, especially transformers 5.x for the LayoutXLM processor.
+
+| Component | Version used |
+| --- | --- |
+| Python | 3.13 |
+| torch | 2.11 (CUDA 13 build) |
+| transformers | 5.20 |
+| detectron2 | built from source each session, about 5 - 10 minutes |
+| Seed | 42 for every reported run |
+
+Order: run the OCR notebook, then `prepare_dataset.py` and `build_token_dataset.py` ([section 3](#3-data-preprocessing-steps)),
+then the commands in [`docs/training.md`](docs/training.md). Model weights are not stored in the repository; retrain with
+the M1b v2 command in that file (about 30 minutes on a T4).
 
 ## Team
 

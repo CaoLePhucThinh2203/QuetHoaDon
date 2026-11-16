@@ -1,6 +1,9 @@
 # Kế hoạch tổng và danh sách task
 
-*Soạn ngày 10/11/2026, bám sát `AI Project Progress.docx` (Tuần 1–3) và yêu cầu Tuần 4–5 của giảng viên. Đây là kế hoạch hiện hành; [`project_status.md`](project_status.md) và [`week4_plan.md`](week4_plan.md) là tài liệu tham khảo, nếu mâu thuẫn thì theo file này.*
+> **Cập nhật 17/11/2026:** kế hoạch hiện hành cho tuần cuối là [`week5_plan.md`](week5_plan.md) (hiện trạng đã kiểm chứng, khoảng
+> trống và danh sách task Tuần 5). File này giữ làm kế hoạch tổng để tra mã task; trạng thái từng task ở đây chưa được cập nhật.
+
+*Soạn ngày 10/11/2026, bám sát `AI Project Progress.docx` (Tuần 1–3) và yêu cầu Tuần 4–5 của giảng viên. [`project_status.md`](project_status.md) và [`week4_plan.md`](week4_plan.md) là tài liệu tham khảo, nếu mâu thuẫn thì theo file này.*
 
 **Mục tiêu:** pipeline CRAFT → VietOCR → LayoutXLM chạy tốt nhất có thể, có một model LayoutXLM được fine-tune kỹ, vượt rõ baseline của Tuần 3, có số đo đáng tin và trả lời đủ 3 RQ.
 
@@ -50,9 +53,9 @@
 | --- | --- | --- |
 | 1. Giải thích kiến trúc model | 4.1, 4.2, 2.4 | `docs/architecture.md` |
 | 2. Quá trình train: siêu tham số, hàm loss, khó khăn | 4.2, 4.5, 0.5 | `docs/training.md`, `outputs/train/run_*.json` |
-| 3. Chỉ số đánh giá: Accuracy, F1, RMSE, AUC | 2.1 | `docs/reports/week4_evaluation.md`, `outputs/metrics/*.json` |
-| 4. So sánh baseline (B0) với model cải tiến (M1b) | 2.4, 4.3, 5.1 | `docs/reports/week4_evaluation.md` |
-| 5. Phân tích lỗi và kế hoạch cải tiến | 8.3, 4.4–4.11 | `docs/reports/week4_error_analysis.md` |
+| 3. Chỉ số đánh giá: Accuracy, F1, RMSE, AUC | 2.1 | Báo cáo Tuần 4 (PDF, ngoài repo), bảng Results trong `README.md`, `scripts/evaluate_layoutxlm.py` |
+| 4. So sánh baseline (B0) với model cải tiến (M1b) | 2.4, 4.3, 5.1 | Báo cáo Tuần 4 (PDF), bảng Results trong `README.md`, `scripts/compare_models.py` |
+| 5. Phân tích lỗi và kế hoạch cải tiến | 8.3, 4.4–4.11 | Báo cáo Tuần 4 (PDF), `scripts/error_analysis.py` |
 
 ### Tuần 5 (yêu cầu: giải pháp end-to-end)
 
@@ -192,7 +195,7 @@ Nguyên tắc đánh giá: một split duy nhất (sau khi gộp ảnh trùng), 
 | --- | --- | --- | --- |
 | 8.1 | Chốt cấu hình cuối của mọi model dựa trên Validation | P0 | Danh sách cấu hình cố định |
 | 8.2 | Chạy Test một lần cho tất cả model | P0 | `final_test.json` |
-| 8.3 | Phân tích lỗi: ít nhất 50 hóa đơn sai, phân loại nguyên nhân (detection, OCR, ghép nhãn, cắt 512 token, model, hậu xử lý), có tỉ lệ và ví dụ | P0 | `week4_error_analysis.md` |
+| 8.3 | Phân tích lỗi: ít nhất 50 hóa đơn sai, phân loại nguyên nhân (detection, OCR, ghép nhãn, cắt 512 token, model, hậu xử lý), có tỉ lệ và ví dụ | P0 | Bảng nguyên nhân lỗi trong báo cáo Tuần 4 |
 | 8.4 | Phân tích theo nhóm chất lượng ảnh và theo loại cửa hàng (độ thiên lệch) | P1 | Bảng và nhận xét |
 | 8.5 | Đánh giá định tính ITEM_NAME, ITEM_PRICE, QUANTITY trên khoảng 20 hóa đơn vì các trường này không có nhãn | P0 | Ví dụ minh họa |
 

@@ -1,5 +1,8 @@
 # Báo cáo Tuần 3 — Đánh giá hiện trạng
 
+> **Tài liệu lịch sử (04/11/2026).** Phản ánh repo trước khi huấn luyện model. Trạng thái hiện hành, kết quả Tuần 4 và kế
+> hoạch nằm ở [`../../README.md`](../../README.md) và [`project_plan.md`](project_plan.md).
+
 *Cập nhật dựa trên `AI project.docx` (kế hoạch + trình bày Tuần 1-3) và repo tại commit `1f0d8dd` (04/11/2026).*
 
 ## 1. Kết luận

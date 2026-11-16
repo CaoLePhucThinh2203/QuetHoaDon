@@ -1,4 +1,6 @@
 # Runtime dependencies of the pipeline (Colab/Kaggle GPU). Install order matters - see notebooks/02_pipeline_colab.ipynb.
+# The reported results were produced with Python 3.13, torch 2.11, transformers 5.20 (Kaggle T4); see README 5.4.
+# The lower bounds below are not tested; use the versions above when you need to reproduce a number.
 torch>=2.0.0
 torchvision>=0.15.0
 transformers>=4.40.0
