@@ -39,7 +39,7 @@ Notebook gồm Stage 0-3 giống pipeline trong `src/` (notebook nháp `QuetHoaD
 | 4C | Chia train/val/test theo hóa đơn + LogisticRegression one-vs-rest trên 22 đặc trưng hàng |
 | 4D / 4E | Đánh giá đầu-cuối, phân tích lỗi tổng tiền |
 | 5 | Phân loại chi tiêu food / move / study / shop / other (TF-IDF char n-gram + LR) |
-| 6 | Xuất `receipt_model.json` (197 KB) + `receipt_lexicon.json` cho app FinBud |
+| 6 | Xuất `receipt_model.json` (197 KB) + `receipt_lexicon.json` |
 | 7 | Đánh giá trên OCR của ML Kit: chưa có mẫu |
 
 ### Số liệu
@@ -100,7 +100,7 @@ Thí nghiệm cho từng RQ:
 - **RQ1:** cắt các vùng có nhãn trong MC-OCR (có sẵn text chuẩn), đo **CER của VietOCR khi bật / tắt tiền xử lý**.
   Không phụ thuộc detection. Thêm augmentation khi fine-tune M1b.
 - **RQ2:** so B0 / M1a / M1b bằng F1 từng trường + tổng tiền đúng, trên **cùng một split**.
-- **RQ3:** thời gian/ảnh theo stage, kích thước model, GPU vs CPU. FinBud trên máy dùng B0; LayoutXLM chạy phía server
+- **RQ3:** thời gian/ảnh theo stage, kích thước model, GPU vs CPU. B0 đủ nhẹ để chạy trên máy; LayoutXLM chạy phía server
   hoặc làm model "thầy".
 
 Lưu ý kỹ thuật: nhãn token lấy bằng ghép box CRAFT với polygon MC-OCR theo IoU (thay cho so khớp văn bản) và báo cáo
@@ -118,7 +118,7 @@ trần recall; LayoutXLM cần detectron2 → chỉ chạy trên Colab; thống 
 | 2 | Docx: `label_distribution` chỉ có ADDRESS + SELLER (3033 ≠ 6585) | Chạy lại `scripts/prepare_dataset.py` trên Colab, sửa docx |
 | 3 | Docx Tuần 2 nói LayoutLM *trích xuất*, Tuần 3 nói LayoutXLM *trích đặc trưng* + phân cụm | Thống nhất theo mục 4 |
 | 4 | Docx mục 4.2 bỏ TIMESTAMP, có ITEM_NAME / ITEM_PRICE / QUANTITY (không có nhãn) | Thống nhất 4 trường có nhãn + item lines đánh giá định tính |
-| 5 | Docs cũ theo hướng unsupervised: `docs/dataset_documentation.md`, `docs/multi_dataset_architecture.md`, `docs/preprocessing.md`, `reports/project_leader_handover.md` | **Đã xóa** khỏi repo (còn trong lịch sử Git) |
+| 5 | Docs cũ theo hướng unsupervised: `docs/dataset_documentation.md`, `docs/multi_dataset_architecture.md`, `docs/preprocessing.md`, `reports/project_leader_handover.md` | **Đã chuyển** vào `docs/archive/` (chỉ để tham khảo lịch sử) |
 | 6 | Notebook DesignThinking chưa có trong repo nhưng là nguồn của số B0 | Đưa vào `notebooks/` hoặc port Stage 4 vào `src/extraction/` |
 | 7 | Chưa kiểm tra ảnh gần trùng giữa các split; manifest lưu đường dẫn tuyệt đối | Như WS-A trong `week4_plan.md` |
 

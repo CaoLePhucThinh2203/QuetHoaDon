@@ -1,7 +1,7 @@
 """Field-level evaluation of token-classifier predictions (pure Python / NumPy / scikit-learn).
 
 Entity-level F1 (``seqmetrics``) is a harsh training signal: one wrongly cut word makes a whole entity wrong.
-What FinBud needs is the *value of each field*, so this module decodes the predicted tags into
+What downstream use needs is the *value of each field*, so this module decodes the predicted tags into
 ``SELLER / ADDRESS / TIMESTAMP / TOTAL_COST`` and scores them with the same rules as the rest of the project
 (``src.evaluation.metrics.field_scores``), plus:
 
