@@ -49,7 +49,10 @@ class ImagePreprocessor:
         orig = cv2.imread(image_path)
         if orig is None:
             raise FileNotFoundError(f"Cannot read image: {image_path}")
+        return self.process_array(orig)
 
+    def process_array(self, orig: np.ndarray) -> PreprocessResult:
+        """Same as ``process`` for an image that is already in memory (BGR, uint8)."""
         h0, w0 = orig.shape[:2]
         scale = 1.0
         if max(h0, w0) > self.target_max_dim:

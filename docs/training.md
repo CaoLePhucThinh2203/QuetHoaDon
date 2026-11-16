@@ -79,3 +79,23 @@ python scripts/draw_errors.py --report eval/m1b_v2_test.json --token-dir $TOK --
 ```
 
 Do not choose anything with the test split; seeds only report the spread of an already frozen configuration.
+
+## End-to-end extraction and Week 5 measurements
+
+```bash
+# photo -> SELLER / ADDRESS / TIMESTAMP / TOTAL_COST (preprocessing, CRAFT, VietOCR, LayoutXLM; GPU)
+python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --image receipt.jpg --output out.json
+# the same from an existing OCR result and its preprocessed image (no CRAFT / VietOCR)
+python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --ocr-json <id>.json --preprocessed-image <id>.jpg
+
+# latency and size of the LayoutXLM stage on GPU and CPU (RQ3); --b0-model adds B0
+python scripts/measure_latency.py --token-dir $TOK --image-dir $IMG --checkpoint M1b=runs/m1b_v2_*/best --out eval/latency.json
+
+# effect of preprocessing on VietOCR, validation split only (RQ1); needs the ORIGINAL photos and the split manifest
+python scripts/ocr_preprocessing_ablation.py --csv $CSV --image-dir $IMG_RAW --split-manifest outputs/dataset/mcocr_manifest_split.csv \
+    --degradations none,blur,dark,noise --out eval/ocr_ablation.json --md eval/ocr_ablation.md
+```
+
+The extractor decodes with the same functions that scored the Week-4 results. In the ablation, the four configurations are
+resize only, deskew, contrast (CLAHE + bilateral filter) and both; blur, darkening and noise use fixed parameters
+(`src/evaluation/ocr_ablation.py`). `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` runs all of this on Kaggle.

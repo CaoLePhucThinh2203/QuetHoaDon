@@ -126,9 +126,14 @@ def cluster_summary(model: Dict[str, Any], top: int = 3) -> List[Dict[str, Any]]
 
 # ---------------------------------------------------------------------------------- frozen encoder (GPU)
 def embed_records(records: Sequence[Dict[str, Any]], image_dir: str, model_name: str = "microsoft/layoutxlm-base",
-                  max_tokens: int = 480, overlap_tokens: int = 100, batch_size: int = 8, num_workers: int = 2
+                  max_tokens: int = 480, overlap_tokens: int = 100, batch_size: int = 8, num_workers: int = 2,
+                  encoder: Any = None, processor: Any = None, device: Optional[str] = None
                   ) -> List[np.ndarray]:
-    """Frozen LayoutXLM embedding of every word (first sub-token, averaged over overlapping windows)."""
+    """Frozen LayoutXLM embedding of every word (first sub-token, averaged over overlapping windows).
+
+    ``encoder``, ``processor`` and ``device`` can be passed to reuse an already loaded model (the latency script
+    calls this once per receipt); otherwise they are created from ``model_name``.
+    """
     import torch
     from torch.utils.data import DataLoader
     from transformers import AutoProcessor, LayoutLMv2Model
@@ -136,9 +141,11 @@ def embed_records(records: Sequence[Dict[str, Any]], image_dir: str, model_name:
     from src.training.data import WindowDataset, build_windows
     from src.training.windows import merge_window_probs
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    processor = AutoProcessor.from_pretrained(model_name, apply_ocr=False)
-    encoder = LayoutLMv2Model.from_pretrained(model_name).to(device).eval()
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    if processor is None:
+        processor = AutoProcessor.from_pretrained(model_name, apply_ocr=False)
+    if encoder is None:
+        encoder = LayoutLMv2Model.from_pretrained(model_name).to(device).eval()
     windows = build_windows(records, processor.tokenizer, max_tokens, overlap_tokens)
     ds = WindowDataset(records, windows, processor, image_dir)
     loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)

@@ -73,7 +73,8 @@ QuetHoaDon/
 ├── notebooks/
 │   ├── 01_mc_ocr_eda.ipynb       # dataset audit
 │   ├── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
-│   └── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
+│   ├── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
+│   └── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
@@ -86,7 +87,10 @@ QuetHoaDon/
 │   ├── find_duplicates.py        # near-duplicate receipts across splits
 │   ├── rescore_without_duplicates.py
 │   ├── aggregate_seeds.py        # mean and standard deviation over seeds
-│   └── draw_errors.py            # draw wrong fields on the receipt for manual review
+│   ├── draw_errors.py            # draw wrong fields on the receipt for manual review
+│   ├── extract_receipt.py        # end-to-end demo: photo -> four fields with M1b
+│   ├── measure_latency.py        # latency and size of B0 / M1a / M1b on GPU and CPU
+│   └── ocr_preprocessing_ablation.py  # RQ1: preprocessing vs VietOCR error rate
 ├── src/                          # source code (table above)
 ├── tests/                        # 150+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
@@ -152,7 +156,9 @@ near-duplicate in train (macro F1 without them: M1b 0.642). How to train and sco
 | `notebooks/01_mc_ocr_eda.ipynb` | dataset audit: label taxonomy, missing images, resolutions, entity counts, samples | Kaggle / local |
 | `notebooks/02_pipeline_colab.ipynb` | install → build pipeline from `configs/` → 5-image smoke test → full resumable run → inspect a result | Colab GPU |
 | `notebooks/03_train_evaluate_kaggle.ipynb` | train M1b / M1a, run B0, score, compare, error analysis | Kaggle GPU |
+| `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` | end-to-end demo, latency (RQ3), preprocessing ablation (RQ1), duplicate check | Kaggle GPU |
 | `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
+| `scripts/extract_receipt.py` | receipt photo → seller, address, date, total with the fine-tuned model | GPU |
 | `scripts/train_layoutxlm.py`, `run_baseline_b0.py`, `evaluate_layoutxlm.py`, `compare_models.py` | train and score the three systems | GPU for training and scoring |
 
 Models: CRAFT and VietOCR (`vgg_transformer`) are pretrained and used for inference only; LayoutXLM-base

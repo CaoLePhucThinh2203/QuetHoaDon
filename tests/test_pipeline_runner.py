@@ -92,6 +92,16 @@ class TestPredict(unittest.TestCase):
             self.assertEqual(meta["ocr_items"][0]["text"], "text")
             self.assertEqual(os.listdir(tmp), ["img0.jpg"])
 
+    def test_infer_returns_meta_and_the_preprocessed_image(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = make_images(tmp, 1)[0]
+            pl = ReceiptPipeline(ImagePreprocessor(enhance=False, max_skew=0.0),
+                                 FakeDetector([[10, 10, 100, 40]]), FakeRecognizer(), None)
+            meta, image = pl.infer(path)
+            self.assertEqual(meta["file_id"], "img0")
+            self.assertEqual(image.shape, (200, 300, 3))
+            self.assertEqual(os.listdir(tmp), ["img0.jpg"])
+
 
 if __name__ == "__main__":
     unittest.main()
