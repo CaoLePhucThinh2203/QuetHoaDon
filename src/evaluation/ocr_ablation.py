@@ -8,6 +8,10 @@ For every receipt the original photo is optionally degraded (blur, darkening, no
 preprocessed with one of the configurations in ``CONFIGS`` and every annotated polygon is mapped into the processed
 image with the exact transform of ``ImageGeometry`` (resize then rotation by the estimated skew). Everything except
 the recognizer is plain Python / OpenCV; the recognizer is injected, so the logic is unit-tested with a fake one.
+
+Limits to state with the results: crops follow the annotated *lines* (axis-aligned box of the polygon), while the
+production pipeline reads CRAFT boxes, which can be shorter or longer than a line; the numbers therefore describe the
+recogniser under each preprocessing setting, not the end-to-end OCR error. Only the four annotated fields are covered.
 """
 import os
 from typing import Any, Dict, List, Optional, Sequence, Tuple
