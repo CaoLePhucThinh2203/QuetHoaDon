@@ -68,18 +68,20 @@ tìm ra nguyên nhân (việc P0.2).
 
 ### Kết quả (luật đóng băng ở phiên bản này, chạy trên token dataset `tok_ft_n05`)
 
-| Chỉ số | Train (781 hóa đơn có tổng chuẩn) | Validation (94) |
-| --- | --- | --- |
-| Đọc được ít nhất một món | 85,4 % | 85,1 % |
-| Tổng các món = tổng chuẩn | 56,9 % | 62,8 % [52,7; 71,9] |
-| Chỉ tính hóa đơn có từ 2 món trở lên | 60,0 % (257 / 428) | 72,0 % (36 / 50) |
-| `verified` | 51,3 % | 55,3 % |
-| Trong số `verified`, bằng tổng chuẩn | 97,0 % | 98,1 % (51 / 52) |
-| Dòng thỏa số lượng × đơn giá = thành tiền | 91,5 % | 89,9 % |
+| Chỉ số | Train (781 hóa đơn có tổng chuẩn) | Validation (94) | **Test (97, chấm một lần)** |
+| --- | --- | --- | --- |
+| Đọc được ít nhất một món | 85,4 % | 85,1 % | 80,4 % (78 / 97) |
+| Tổng các món = tổng chuẩn | 56,9 % | 62,8 % [52,7; 71,9] | **47,4 %** (46 / 97) [37,8; 57,3] |
+| Chỉ tính hóa đơn có từ 2 món trở lên | 60,0 % (257 / 428) | 72,0 % (36 / 50) | 46,6 % (27 / 58) |
+| `verified` | 51,3 % | 55,3 % | 45,4 % (44 / 97) |
+| Trong số `verified`, bằng tổng chuẩn | 97,0 % | 98,1 % (51 / 52) | 95,5 % (42 / 44) |
+| Dòng thỏa số lượng × đơn giá = thành tiền | 91,5 % | 89,9 % | 91,9 % |
 
 Lưu ý: validation ở đây chỉ có 94 hóa đơn vì chỉ tính hóa đơn có tổng chuẩn đọc được dưới 100 triệu. Một số hóa đơn có hàng
 giảm giá nên tổng các món khác tổng cuối dù đọc đúng (đã trừ dòng giảm giá khi nhận ra, nhưng chưa phủ mọi kiểu). Tập test
-**chưa chấm**, sẽ chấm một lần khi luật đã đóng băng.
+chấm **một lần** (17/11/2026, `eval/items_test.json`) với luật không chỉnh thêm sau validation. Số test thấp hơn validation
+(47,4 % so với 62,8 %); khoảng tin cậy của hai tập chồng nhau một phần, nên không kết luận chắc đâu là mức thật, và con số
+test là con số đưa vào báo cáo. Nhãn `verified` vẫn đáng tin trên cả ba tập (95–98 % đúng).
 
 ## 4. Danh sách việc
 
@@ -93,7 +95,7 @@ giảm giá nên tổng các món khác tổng cuối dù đọc đúng (đã tr
 | 1 | Module đọc mặt hàng + tự kiểm tra + unit test | — | `tests/test_line_items.py` | xong |
 | 2 | Chỉ số chấm bằng tổng chuẩn (`scripts/score_items.py`) | 1 | Bảng train, validation | xong |
 | 3 | Đầu ra gọn (`compact_result`, `--items`, `--compact`): ẩn trường không đọc được, tách giờ khỏi ngày, SELLER riêng | 1 | `tests/test_extractor_items.py` | xong |
-| 4 | Chạy trên Kaggle: unit test mới (cell 3), chấm mặt hàng trên test **một lần** | 1-3, commit | Bảng test | chờ commit |
+| 4 | Chấm mặt hàng trên test một lần (Python thuần, chạy trên Mac); unit test mới chạy lại ở Kaggle cell 3 | 1-3 | Bảng test | xong (test); cell 3 chờ |
 | 5 | Ví dụ đọc bằng mắt: in 15 hóa đơn ngẫu nhiên (tên, số lượng, giá) kèm ảnh | 4 | Mục minh họa trong báo cáo | chưa làm |
 | 6 | Nếu còn thời gian: nhãn tự sinh từ hóa đơn `verified` của train để huấn luyện model mặt hàng (M1c) | 4 | M1c không làm giảm 4 trường trên validation | P2 |
 | 7 | README, báo cáo: mục mở rộng mặt hàng tách riêng khỏi kết quả 4 trường, ghi hạn chế | 4, P0.2 | Mọi con số có file nguồn | chưa làm |
