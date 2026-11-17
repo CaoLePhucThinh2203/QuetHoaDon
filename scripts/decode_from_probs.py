@@ -24,6 +24,7 @@ from src.evaluation.metrics import FIELDS  # noqa: E402
 from src.evaluation.offline_decode import decode_from_probs  # noqa: E402
 from src.evaluation.probs_io import load_probs  # noqa: E402
 from src.extraction.datetime_rules import improve_timestamps  # noqa: E402
+from src.extraction.field_cleanup import clean_predictions  # noqa: E402
 from src.evaluation.reproduction import (compare_predictions, compare_scores, reference_predictions,  # noqa: E402
                                          score_predictions)
 from src.training.data import load_jsonl  # noqa: E402
@@ -39,10 +40,12 @@ def main() -> None:
     ap.add_argument("--reference", default=None, help="report of the same run; its predictions must be reproduced")
     ap.add_argument("--datetime", action="store_true",
                     help="add the time next to the date and rebuild split dates (src/extraction/datetime_rules.py)")
+    ap.add_argument("--cleanup", action="store_true",
+                    help="remove repeated words and glued labels / phone numbers from SELLER and ADDRESS")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-    if args.datetime and args.reference:
-        sys.exit("--reference checks the Week-4 decoding; run it without --datetime.")
+    if (args.datetime or args.cleanup) and args.reference:
+        sys.exit("--reference checks the Week-4 decoding; run it without --datetime / --cleanup.")
     if args.split == "test" and not args.allow_test:
         sys.exit("The test split is only read for the final evaluation. Re-run with --allow-test.")
 
@@ -50,10 +53,12 @@ def main() -> None:
     preds, merged = decode_from_probs(records, load_probs(args.probs))
     if args.datetime:
         preds = improve_timestamps(records, preds)
+    if args.cleanup:
+        preds = clean_predictions(preds)
     gts = gold_fields(records)
     lenient = score_predictions(records, preds)
     app = app_scores(gts, preds)
-    report = {"split": args.split, "receipts": len(records), "datetime_rules": args.datetime, "lenient": lenient,
+    report = {"split": args.split, "receipts": len(records), "datetime_rules": args.datetime, "field_cleanup": args.cleanup, "lenient": lenient,
               "app": {k: v for k, v in app.items() if k != "per_receipt"},
               "error_causes": error_causes(records, merged, preds, row_limit=100000),
               "per_receipt_soft_rules": [{"img_id": r["img_id"], "file_id": r.get("file_id"), "pred": preds[r["img_id"]]}

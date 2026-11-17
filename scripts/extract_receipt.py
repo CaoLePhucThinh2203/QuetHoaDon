@@ -30,6 +30,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--config-dir", default=str(ROOT / "configs"))
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     ap.add_argument("--output", default=None, help="Optional JSON file for the result")
+    ap.add_argument("--ocr-weights", default=None,
+                    help="fine-tuned VietOCR state dict (use it with the M1b checkpoint trained on that OCR)")
+    ap.add_argument("--postprocess", action="store_true",
+                    help="add the time next to the date and clean SELLER / ADDRESS (Week-5 decoding)")
     ap.add_argument("--show-words", action="store_true", help="Also print every word with its box and predicted tag")
     return ap.parse_args()
 
@@ -48,7 +52,8 @@ def main() -> None:
     checkpoint = matches[-1]
 
     print(f"[*] Loading models from {checkpoint} (device={args.device})", file=sys.stderr)
-    extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, args.device, with_ocr=not use_json)
+    extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, args.device, with_ocr=not use_json,
+                                                 postprocess=args.postprocess, ocr_weights=args.ocr_weights)
     if use_json:
         with open(args.ocr_json, "r", encoding="utf-8") as f:
             result = extractor.extract_from_ocr(json.load(f), args.preprocessed_image)
