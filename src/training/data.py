@@ -11,7 +11,10 @@ import os
 from typing import Any, Dict, List, Sequence, Tuple
 
 from PIL import Image
-from torch.utils.data import Dataset
+try:
+    from torch.utils.data import Dataset
+except ImportError:  # CI installs only the light dependencies; load_jsonl and word_token_counts need no torch
+    Dataset = object
 
 from src.preprocessing.token_dataset import LABEL2ID
 from src.training.windows import make_windows
