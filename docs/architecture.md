@@ -7,7 +7,7 @@ Input: one receipt photo. Output: structured JSON.
 | Field | Ground truth in MC-OCR | How it is evaluated |
 | --- | --- | --- |
 | `SELLER`, `ADDRESS`, `TIMESTAMP`, `TOTAL_COST` | yes | field-level P/R/F1, exact match |
-| `ITEM_NAME`, `ITEM_PRICE`, `QUANTITY` | **no** | qualitative only (sampled receipts) |
+| item lines: name, quantity, unit price, amount | **no** | rule based; amounts checked against the annotated total, names not scored |
 
 ## 2. Pipeline
 
@@ -17,9 +17,9 @@ Input: one receipt photo. Output: structured JSON.
 | --- | --- | --- | --- |
 | 0 | `ImagePreprocessor` (`src/preprocessing/image_preprocessor.py`) | path -> resized / deskewed / enhanced BGR image, scale, skew angle | `target_max_dim=1280`, `enhance`, `max_skew=15` |
 | 1 | `CraftDetector` (`src/detection/craft_detector.py`) | image -> `TextRegion` list in reading order | `text_threshold=0.7`, `link_threshold=0.4`, `low_text=0.4`, `long_size=1280` |
-| 2 | `VietOCRRecognizer` (`src/recognition/vietocr_recognizer.py`) | regions -> `OcrItem` list (text + confidence) | `vgg_transformer`, `batch_size=32` |
+| 2 | `VietOCRRecognizer` (`src/recognition/vietocr_recognizer.py`) | regions -> `OcrItem` list (text + confidence) | `vgg_transformer`, `batch_size=32`, optional fine-tuned `weights` |
 | 3 | `LayoutXLMFeatureExtractor` (`src/features/layoutxlm_extractor.py`) | OCR items + image -> hidden states `[1, 512, 768]` (+ visual tokens) | `max_seq_length=512`, fp16 storage |
-| 4 | not implemented | OCR items (+ features) -> fields | see section 5 |
+| 4 | `ReceiptExtractor` (`src/pipeline/extractor.py`) | OCR words + image -> four fields (+ item lines) | checkpoint, `postprocess`, `items`, `nested_threshold` |
 
 `ReceiptPipeline` (`src/pipeline/runner.py`) runs the stages:
 
@@ -73,10 +73,20 @@ variant (M1a, head only) is kept as an ablation. See `docs/reports/project_plan.
   `src/extraction/decode.py` turns predicted tags back into field values (the amount of `TOTAL_COST` is taken from the
   numeric words of the entity).
 
+- **Week-5 additions (final configuration).** VietOCR is fine-tuned on MC-OCR crops (`src/recognition/finetune*.py`) and
+  M1b v3 is trained on that OCR. After decoding, `src/extraction/datetime_rules.py` keeps the time next to the date and
+  rebuilds split dates, and `src/extraction/field_cleanup.py` drops words repeated by overlapping boxes and labels or
+  phone numbers glued to the end of SELLER / ADDRESS (no matching against stores seen in training).
+- **Item lines.** `src/extraction/line_items.py` groups words into lines, finds the item table (after the column header,
+  before the first total line), reads amounts and quantity so that quantity × unit price = amount, takes the name from
+  the line or the line above, and subtracts discount lines. `check_items` marks a receipt `verified` when the item sum
+  equals the total printed on it. `compact_result()` returns only the fields that were read.
+
 ## 6. Limitations
 
 - OCR errors propagate to every later stage (detection → OCR → extraction).
 - A receipt contains subtotal, tax, cash, change and total: the largest number is not automatically the total.
 - Item names and prices can wrap across lines or columns.
 - VietOCR is Vietnamese-only; other languages need a different recogniser.
-- MC-OCR is biased toward chain stores and legible printed receipts.
+- MC-OCR is biased toward chain stores and legible printed receipts; no real-photo set outside MC-OCR was scored.
+- Item names cannot be scored (no item labels); item amounts are checked only through the total.

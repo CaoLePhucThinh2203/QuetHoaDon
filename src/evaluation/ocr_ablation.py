@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
+from tqdm.auto import tqdm
 
 from src.evaluation.metrics import edit_distance, normalize_text
 from src.preprocessing.annotation_parser import load_and_validate_mcocr_csv
@@ -122,7 +123,7 @@ def run_ablation(items: Sequence[Dict[str, Any]], recognizer: Any, target_max_di
 
     for deg_index, deg in enumerate(degradations):
         entries: Dict[str, List[Tuple[Dict[str, Any], Any, np.ndarray]]] = {name: [] for name in configs}
-        for item in items:
+        for item in tqdm(items, desc=f"preprocess {deg}"):
             orig = cv2.imread(item["path"])
             if orig is None:
                 if deg_index == 0:
@@ -144,7 +145,7 @@ def run_ablation(items: Sequence[Dict[str, Any]], recognizer: Any, target_max_di
 
         for name, items_crops in entries.items():
             hyps: List[str] = []
-            for i in range(0, len(items_crops), batch_size):
+            for i in tqdm(range(0, len(items_crops), batch_size), desc=f"read {deg}/{name}"):
                 batch = [c for _, _, c in items_crops[i:i + batch_size]]
                 hyps.extend((r.text or "") for r in recognizer.recognize_batch(batch))
             for (item, region, _), hyp in zip(items_crops, hyps):

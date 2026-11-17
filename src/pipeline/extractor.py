@@ -190,11 +190,13 @@ class ReceiptExtractor:
     @classmethod
     def from_checkpoint(cls, checkpoint: str, config_dir: str = "configs", device: str = "auto",
                         with_ocr: bool = True, postprocess: bool = False,
-                        ocr_weights: Optional[str] = None, items: bool = False) -> "ReceiptExtractor":
+                        ocr_weights: Optional[str] = None, items: bool = False,
+                        nested_threshold: Optional[float] = None) -> "ReceiptExtractor":
         """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR.
 
         ``ocr_weights`` is the fine-tuned VietOCR state dict; the checkpoint must have been trained on the OCR of the
         same recogniser (M1b v3 goes with the fine-tuned VietOCR, M1b v2 with the pretrained one).
+        ``nested_threshold`` overrides the nested-box filter of CRAFT; the final configuration uses 0.5.
         """
         import torch
         from transformers import AutoProcessor
@@ -217,6 +219,8 @@ class ReceiptExtractor:
 
         if ocr_weights:
             cfg["recognition"] = dict(cfg["recognition"], weights=ocr_weights)
+        if nested_threshold is not None:        # the final configuration was scored with 0.5 (config default 0.8)
+            cfg["detection"] = dict(cfg["detection"], nested_threshold=nested_threshold)
         pipeline = build_ocr_pipeline(cfg, device) if with_ocr else None
         return cls(probs_fn, pipeline, postprocess, items)
 
