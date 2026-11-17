@@ -39,7 +39,7 @@ chữ và vị trí) → ghép từ thành 4 trường → luật ngày giờ v�
 - Vì sao vòng 2 thất bại (CER 6,28 % → 6,56–6,98 %, hàm mất mát đứng yên khoảng 0,50) và đó là kết quả âm hợp lệ.
 
 **Số để trích:** CER vùng validation 13,03 % → 6,49 % (`vietocr_ft/finetune_report.json`); dòng đọc đúng hoàn toàn 66,8 % →
-83,9 %; thời gian OCR 2,58 giây mỗi hóa đơn (tiền xử lý 0,11, CRAFT 0,62, VietOCR 1,85).
+83,9 %; thời gian OCR 2,43 giây mỗi hóa đơn (tiền xử lý 0,11, CRAFT 0,61, VietOCR 1,72; `latency_final.json`).
 
 **Câu hỏi hội đồng có thể hỏi:** Tại sao không chọn epoch theo tập test? (vì tập test chỉ để chấm cuối). Vì sao CER
 trung bình SELLER của "trần OCR" tăng (0,143 → 0,192) dù số khớp tuyệt đối tăng (63 → 81 trên 106)? (`eval/ocr_runs_val.json`; chưa có giải thích đã kiểm chứng, nên nói rõ là chưa rõ).
@@ -57,12 +57,12 @@ trung bình SELLER của "trần OCR" tăng (0,143 → 0,192) dù số khớp tu
 - Vì sao dùng trọng số lớp `sqrt_inverse` (nhãn O áp đảo) và chọn checkpoint theo macro F1.
 - **Lỗi đã tìm ra và sửa trong tuần 5:** sau khi processor chạy với `padding="max_length"`, tokenizer nhanh giữ chế độ đệm
   512 nên mọi từ bị đếm 512 sub-token và một hóa đơn bị chia thành cả trăm cửa sổ khi chạy từng hóa đơn (đường đi của app).
-  Điểm chấm theo lô không bị ảnh hưởng; độ trễ đo lần đầu (4586 ms) là số của lỗi, sau sửa là 61,6 ms. `verify_extractor.py`
+  Điểm chấm theo lô không bị ảnh hưởng; độ trễ đo lần đầu (4586 ms) là số của lỗi, sau sửa là 58,9 ms. `verify_extractor.py`
   xác nhận đường đi của app tái lập đúng dự đoán Tuần 4 (115/115 hóa đơn).
 - Kết quả âm: 3 seed và ensemble không cải thiện (lenient macro F1 0,6636 / 0,6578 / 0,6613 / 0,6627).
 
-**Số để trích:** macro F1 test B0 0,352, M1a 0,638, M1b 0,658; M1b có 368,66 triệu tham số, 1476 MB; khâu LayoutXLM 61,6 ms
-GPU (p95 86,8) và 966,5 ms CPU (`latency_v3_fixed.json` — chạy lại cell 11 nếu cần file nguồn).
+**Số để trích:** macro F1 test B0 0,352, M1a 0,638, M1b 0,658; M1b có 368,66 triệu tham số, 1476 MB; khâu LayoutXLM 58,9 ms
+GPU (p95 86,0) và 913,2 ms CPU (`eval/latency_final.json`, notebook 07 cell 9).
 
 **Câu hỏi có thể hỏi:** Vì sao không dùng CRF? Vì sao đóng băng bộ mã hóa (M1a) lại kém hơn? M1b v3 khác v2 ở đâu? (huấn
 luyện trên chữ OCR của VietOCR tinh chỉnh, cùng cấu hình).

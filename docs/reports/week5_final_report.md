@@ -37,7 +37,7 @@ Dạng đầu ra (khung, không phải kết quả thật):
  "items_check": {"sum": 0, "status": "verified", "predicted_total": 0}}
 ```
 
-Kết quả demo thật trên 3 hóa đơn test nằm trong output cell 10 của `notebooks/07_final_evaluation_kaggle.ipynb`.
+Kết quả demo thật nằm trong output cell 10 của `notebooks/07_final_evaluation_kaggle.ipynb` (notebook đã chạy đủ, mọi dòng KHỚP / PASS). Lưu ý trung thực: do danh sách chia tập có nhiều dòng cho mỗi ảnh, cell 10 chạy hai hóa đơn khác nhau (một hóa đơn lặp). Hóa đơn đầu chỉ đọc được tổng tiền; hóa đơn thứ hai đọc đủ bốn trường và 4 món, tổng các món 565 500 so với tổng 585 500 nên trạng thái `unverified`, và có một món đọc sai (số lượng 25, thành tiền 5 000). Đây là hạn chế thật, không chọn lại ví dụ đẹp hơn.
 Đường đi của app được kiểm chứng bằng `scripts/verify_extractor.py`: chạy từng hóa đơn một, nó cho dự đoán giống hệt kết
 quả đã chấm trên cả 115 hóa đơn validation (0 khác biệt, PASS).
 
@@ -70,7 +70,19 @@ Tổng tiền tăng nhưng chưa đủ bằng chứng thống kê (chỉ 11 hóa
 
 - Tinh chỉnh VietOCR, validation, vùng CRAFT: CER 13,03 % → 6,49 % (chênh ghép cặp −6,54 điểm [−7,60; −5,65]); dòng đọc đúng
   hoàn toàn 66,8 % → 83,9 %.
-- Thí nghiệm tiền xử lý (bốn cấu hình, thêm làm mờ / tối / nhiễu): bảng ở cell 11 của notebook 07 (`eval/ocr_ablation_ft.md`).
+- Thí nghiệm tiền xử lý với VietOCR tinh chỉnh (validation, 668 vùng có nhãn, CER %; chênh ghép cặp so với "chỉ đổi cỡ", khoảng 95 % bootstrap):
+
+| Ảnh | Chỉ đổi cỡ | + chỉnh nghiêng | + tăng tương phản | Cả hai |
+| --- | --- | --- | --- | --- |
+| Gốc | 9,7 | 10,1 (+0,37 [−0,77; +1,73]) | 9,7 (+0,02 [−0,17; +0,24]) | 9,8 (+0,08 [−0,82; +0,97]) |
+| Làm mờ | 43,3 | 42,0 | 44,0 | 43,7 |
+| Tối | 10,4 | 10,3 | 10,0 | 10,5 |
+| Nhiễu | 11,3 | 11,2 | 12,4 (+1,11 [+0,50; +1,74]) | 12,2 |
+
+  Kết luận: với VietOCR đã tinh chỉnh, chỉnh nghiêng và tăng tương phản **không** giảm CER có ý nghĩa; chỉ một trường hợp
+  khác biệt rõ và theo hướng xấu đi (tăng tương phản trên ảnh nhiễu). Làm mờ là nhiễu loạn gây hại nhất (CER 43 %), tiền
+  xử lý không cứu được. Giữ tiền xử lý trong pipeline vì cấu hình đóng băng đã dùng nó cho mọi số liệu; thí nghiệm này không
+  dùng để chọn lại.
 
 ### 3.4 Mặt hàng (không có nhãn mặt hàng; chấm bằng tổng tiền chuẩn)
 
@@ -82,10 +94,11 @@ Test, 97 hóa đơn có tổng chuẩn: đọc được ít nhất một món 80
 | Khâu | Thời gian mỗi hóa đơn |
 | --- | --- |
 | Tiền xử lý | 0,11 s |
-| CRAFT | 0,62 s |
-| VietOCR | 1,85 s |
-| LayoutXLM + giải mã, GPU | 61,6 ms (trung vị 57,3; p95 86,8; 60 hóa đơn) |
-| LayoutXLM + giải mã, CPU | 966,5 ms (10 hóa đơn) |
+| CRAFT | 0,61 s |
+| VietOCR | 1,72 s |
+| **Tổng OCR** | **2,43 s** |
+| LayoutXLM + giải mã, GPU | 58,9 ms (trung vị 54,8; p95 86,0; 60 hóa đơn) |
+| LayoutXLM + giải mã, CPU | 913,2 ms (trung vị 908,2; p95 951,1; 10 hóa đơn) |
 
 M1b v3 có 368,66 triệu tham số (1476 MB).
 
@@ -140,6 +153,7 @@ M1b v3 có 368,66 triệu tham số (1476 MB).
 | Validation, cấu hình cuối | `decoded_v3_val.json` |
 | Mặt hàng | `items_train.json`, `items_val.json`, `items_test.json` |
 | Tinh chỉnh VietOCR | `vietocr_ft/finetune_report.json` |
-| Tốc độ | `latency_final.json` (notebook 07); số trong bảng 3.5 từ lần đo ngày 17/11 sau khi sửa lỗi |
+| Tốc độ | `latency_final.json` (notebook 07, đo ngày 18/11) |
+| RQ1 tiền xử lý | `ocr_ablation_ft.json`, `ocr_ablation_ft.md` |
 | Kiểm chứng đường đi của app | `verify_extractor_val.json` |
 | Hệ thống Tuần 4 | `week4_eval.zip` (`comparison_test.md`) |
