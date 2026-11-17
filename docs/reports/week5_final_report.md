@@ -37,6 +37,13 @@ Dạng đầu ra (khung, không phải kết quả thật):
  "items_check": {"sum": 0, "status": "verified", "predicted_total": 0}}
 ```
 
+**Web demo (notebook 08, `scripts/demo_app.py`).** Một trang Gradio chạy trên Kaggle GPU với link công khai: tải ảnh lên,
+trang hiện ảnh sau tiền xử lý với khung từng từ tô màu theo trường model gán, bảng chỉ gồm các trường đọc được, bảng mặt
+hàng có cột đánh dấu dòng mà số lượng × đơn giá ≠ thành tiền, dòng kiểm tra tổng các món so với tổng in trên hóa đơn, JSON
+gọn và thời gian từng khâu. Trang dùng đúng `ReceiptExtractor` của cấu hình đóng băng; ảnh JPEG tải lên được chuyển
+nguyên vẹn tới model (chỉ ảnh xoay EXIF, PNG hoặc có kênh alpha mới được chuyển thành JPEG đứng thẳng). Cell 4 của notebook
+08 kiểm tra đường đi của web cho ra đúng kết quả của đường đi đã chấm và của notebook 07 trên hai hóa đơn test.
+
 Kết quả demo thật nằm trong output cell 10 của `notebooks/07_final_evaluation_kaggle.ipynb` (notebook đã chạy đủ, mọi dòng KHỚP / PASS). Lưu ý trung thực: do danh sách chia tập có nhiều dòng cho mỗi ảnh, cell 10 chạy hai hóa đơn khác nhau (một hóa đơn lặp). Hóa đơn đầu chỉ đọc được tổng tiền; hóa đơn thứ hai đọc đủ bốn trường và 4 món, tổng các món 565 500 so với tổng 585 500 nên trạng thái `unverified`, và có một món đọc sai (số lượng 25, thành tiền 5 000). Đây là hạn chế thật, không chọn lại ví dụ đẹp hơn.
 Đường đi của app được kiểm chứng bằng `scripts/verify_extractor.py`: chạy từng hóa đơn một, nó cho dự đoán giống hệt kết
 quả đã chấm trên cả 115 hóa đơn validation (0 khác biệt, PASS).
@@ -137,8 +144,8 @@ M1b v3 có 368,66 triệu tham số (1476 MB).
 
 | Mục | Trạng thái |
 | --- | --- |
-| Mã nguồn | `src/` theo từng khâu; script trong `scripts/`; notebook 01–07 |
-| Kiểm thử | 279 unit test, chạy không cần GPU (`python -m unittest discover -s tests -t .`), CI chạy trên mỗi PR |
+| Mã nguồn | `src/` theo từng khâu; script trong `scripts/`; notebook 01–08 (08 là web demo) |
+| Kiểm thử | 294 unit test, chạy không cần GPU (`python -m unittest discover -s tests -t .`), CI chạy trên mỗi PR |
 | Tài liệu | `README.md`, `docs/architecture.md`, `docs/dataset.md`, `docs/training.md`, `docs/reports/` |
 | Tái lập | Phiên bản cố định (Python 3.13, torch 2.11, transformers 5.20); notebook 07 tính lại mọi số và in KHỚP / LỆCH |
 | Trọng số | Không lưu trong repo (1,4 GB); nhóm giữ trong dataset Kaggle và Google Drive; có lệnh huấn luyện lại |

@@ -19,6 +19,10 @@ chữ và vị trí) → ghép từ thành 4 trường → luật ngày giờ v�
 3. Dữ liệu chỉ có nhãn bốn trường nên mặt hàng không huấn luyện được; làm bằng luật và chấm bằng tổng tiền chuẩn (47,4 % hóa
    đơn có tổng các món bằng tổng chuẩn).
 
+**Web demo để trình bày:** `notebooks/08_web_demo_kaggle.ipynb` mở một trang web (link `gradio.live`) để tải ảnh hóa đơn lên và
+xem kết quả. Cả nhóm nên chạy thử một lần và biết giải thích: màu khung chữ là trường mà model gán cho từng từ; ✓ / ⚠ ở
+bảng mặt hàng là số lượng × đơn giá có bằng thành tiền không; trường không đọc được thì không hiện.
+
 **Tài liệu gốc để đọc:** `README.md`, `docs/architecture.md`, `docs/dataset.md`, `docs/training.md`,
 `docs/reports/items_plan.md`.
 
