@@ -22,6 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from tqdm.auto import tqdm  # noqa: E402
+
 from src.evaluation.reproduction import (compare_predictions, compare_scores, reference_predictions,  # noqa: E402
                                          score_predictions)
 from src.extraction.schema import ANNOTATED_FIELDS  # noqa: E402
@@ -55,7 +57,7 @@ def main() -> None:
     records = load_jsonl(str(Path(args.token_dir) / "validation.jsonl"))
     extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, with_ocr=False)
     preds, t0 = {}, time.time()
-    for rec in records:
+    for rec in tqdm(records, desc="verify"):
         out = extractor.extract_from_record(rec, args.image_dir)
         preds[rec["img_id"]] = {f: out["fields"][f]["text"] for f in ANNOTATED_FIELDS}
     seconds = time.time() - t0
