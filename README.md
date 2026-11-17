@@ -183,8 +183,10 @@ near-duplicate in train (macro F1 without them: M1b 0.642). How to train and sco
 | `notebooks/05_phase0_baseline_kaggle.ipynb` | strict reading accuracy baseline, saved word probabilities, error catalogue | Kaggle GPU |
 | `notebooks/06_phase1_ocr_kaggle.ipynb` | VietOCR fine-tuning, OCR rerun, nested-box filter, M1b v3 training and scoring | Kaggle GPU |
 | `notebooks/07_final_evaluation_kaggle.ipynb` | **final configuration**: re-computes every reported number with KHỚP / LỆCH checks, latency, demo photo → JSON | Kaggle GPU |
+| `notebooks/08_web_demo_kaggle.ipynb` | **web demo**: upload a receipt photo in the browser, get the fields, item lines and coloured word boxes (public Gradio link) | Kaggle GPU |
 | `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
 | `scripts/extract_receipt.py` | receipt photo → seller, address, date and time, total, item lines (`--items --compact`) | GPU |
+| `scripts/demo_app.py` | the same, as a Gradio web page (`--share` for a public link) | GPU |
 | `scripts/train_layoutxlm.py`, `run_baseline_b0.py`, `evaluate_layoutxlm.py`, `compare_models.py` | train and score the three systems | GPU for training and scoring |
 
 Models: CRAFT and VietOCR (`vgg_transformer`) are pretrained and used for inference only; LayoutXLM-base
@@ -213,6 +215,18 @@ Final configuration on one photo (needs the M1b v3 checkpoint and the fine-tuned
 python scripts/extract_receipt.py --checkpoint m1b_v3_checkpoint/best --ocr-weights vietocr_finetuned.pth \
     --nested-threshold 0.5 --postprocess --items --compact --image path/to/receipt.jpg
 ```
+
+Web demo of the final configuration (same model, upload a photo in the browser). On Kaggle, run
+`notebooks/08_web_demo_kaggle.ipynb` interactively (Run All, not Save & Run All) and open the printed
+`https://….gradio.live` link; elsewhere, with a GPU and `pip install gradio`:
+
+```bash
+python scripts/demo_app.py --checkpoint m1b_v3_checkpoint/best --ocr-weights vietocr_finetuned.pth --share
+```
+
+The page hides the fields that were not read, marks item lines whose quantity × unit price differs from the amount, and
+says whether the item amounts add up to the printed total. Cell 4 of notebook 08 checks that the web path returns
+exactly the output of the scored path (`ReceiptExtractor.extract`) on two test receipts.
 
 `craft-text-detector` and `vietocr` must be installed with `--no-deps` (they pin old torch/numpy versions); see the
 comments in `requirements.txt`.
