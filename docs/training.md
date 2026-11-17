@@ -1,4 +1,4 @@
-# Training and evaluation guide (Week 4)
+# Training and evaluation guide (Weeks 4 and 5)
 
 Models: **B0** (Week 3 pipeline: frozen LayoutXLM features, K-means, clusters mapped to fields), **M1a** (frozen encoder +
 linear head), **M1b** (LayoutXLM fully fine-tuned, `LayoutLMv2ForTokenClassification`, 9 BIO labels).
@@ -80,10 +80,50 @@ python scripts/draw_errors.py --report eval/m1b_v2_test.json --token-dir $TOK --
 
 Do not choose anything with the test split; seeds only report the spread of an already frozen configuration.
 
+## Final configuration (Week 5): fine-tuned VietOCR, M1b v3, rules, item lines
+
+Every choice below was made on validation; the test split was scored once on 17/11/2026 with the frozen configuration.
+`notebooks/06_phase1_ocr_kaggle.ipynb` holds the training run, `notebooks/07_final_evaluation_kaggle.ipynb` re-computes
+every reported number with checks that print KHỚP / LỆCH.
+
+```bash
+# 1. OCR of the whole dataset with the pretrained VietOCR (reproduces token_dataset_v1)
+python scripts/run_ocr_dataset.py --images $IMG_RAW --split-manifest $MANIFEST --out ocr_v1r
+# 2. (crop, text) pairs from train and validation, then fine-tune VietOCR; gate = paired CER on validation region crops
+python scripts/finetune_vietocr.py build --csv $CSV --ocr-dir ocr_v1r/ocr_annotations --image-dir ocr_v1r/preprocessed_images \
+    --split-manifest $MANIFEST --out ocr_pairs
+python scripts/finetune_vietocr.py train --pairs ocr_pairs --out vietocr_ft --epochs 12 --lr 1e-4
+# 3. OCR again with the fine-tuned weights, nested-box filter 0.5, token dataset, ceiling of each OCR run
+python scripts/run_ocr_dataset.py --images $IMG_RAW --split-manifest $MANIFEST --out ocr_ft --weights vietocr_ft/vietocr_finetuned.pth
+python scripts/filter_nested_ocr.py --in-dir ocr_ft/ocr_annotations --out-dir ocr_ft_n05/ocr_annotations --threshold 0.5
+python scripts/build_token_dataset.py --csv $CSV --ocr-dir ocr_ft_n05/ocr_annotations --split-manifest $MANIFEST --out tok_ft_n05
+python scripts/compare_ocr_runs.py --reference v1=$TOK --run ft_n05=tok_ft_n05 --out eval/ocr_runs_val.json
+# 4. M1b v3: same settings as M1b v2, trained on that OCR
+python scripts/train_layoutxlm.py --token-dir tok_ft_n05 --image-dir ocr_v1r/preprocessed_images --out runs --name m1b_v3_ft_n05 \
+    --seed 42 --class-weight sqrt_inverse --select-metric macro --epochs 20 --patience 5
+# 5. score, keep probabilities, decode with the date / time rules and the SELLER / ADDRESS clean-up
+python scripts/evaluate_layoutxlm.py --checkpoint runs/m1b_v3_*/best --token-dir tok_ft_n05 --image-dir $IMG \
+    --split validation --save-probs eval/m1b_v3_val_probs.npz --out eval/m1b_v3_val.json
+python scripts/decode_from_probs.py --token-dir tok_ft_n05 --split validation --probs eval/m1b_v3_val_probs.npz \
+    --datetime --cleanup --out eval/decoded_v3_val.json
+# 6. item lines (rule based) scored with the annotated total; paired comparison of two decoded runs
+python scripts/score_items.py --token-dir tok_ft_n05 --split validation --out eval/items_val.json
+python scripts/compare_strict.py --token-dir tok_ft_n05 --split validation --a week4=eval/decoded_val.json \
+    --b final=eval/decoded_v3_val.json --out eval/paired_val.json
+```
+
+Measured on Kaggle T4: OCR of the 1153 receipts about 45 minutes; VietOCR fine-tuning about 3 minutes per epoch on
+about 20 000 pairs; M1b training about 25 - 30 minutes. A second VietOCR round (start from the round-1 weights, pairs
+cut from the round-1 OCR, 20 epochs at lr 5e-5) did not lower the validation CER and was dropped
+(`docs/reports/items_plan.md`).
+
 ## End-to-end extraction and Week 5 measurements
 
 ```bash
-# photo -> SELLER / ADDRESS / TIMESTAMP / TOTAL_COST (preprocessing, CRAFT, VietOCR, LayoutXLM; GPU)
+# final configuration: photo -> four fields + item lines, short JSON for an app (GPU)
+python scripts/extract_receipt.py --checkpoint m1b_v3_checkpoint/best --ocr-weights vietocr_finetuned.pth \
+    --nested-threshold 0.5 --postprocess --items --compact --image receipt.jpg --output out.json
+# Week-4 model (pretrained VietOCR), full output
 python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --image receipt.jpg --output out.json
 # the same from an existing OCR result and its preprocessed image (no CRAFT / VietOCR)
 python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --ocr-json <id>.json --preprocessed-image <id>.jpg
@@ -100,7 +140,10 @@ python scripts/ocr_preprocessing_ablation.py --csv $CSV --image-dir $IMG_RAW --s
     --degradations none,blur,dark,noise --out eval/ocr_ablation.json --md eval/ocr_ablation.md
 ```
 
-The extractor decodes with the same functions that scored the Week-4 results. In the ablation, the four configurations are
+The extractor decodes with the same functions that scored the results; `--postprocess` adds the Week-5 rules and must be
+used with M1b v3. A tokenizer bug made the per-receipt path (the extractor and `measure_latency.py`) cut every word into
+its own window after the first processor call; it was fixed in `word_token_counts` (Week 5) and `verify_extractor.py`
+printed PASS afterwards (115 / 115 receipts identical). Latency measured before that fix is wrong and was discarded. In the ablation, the four configurations are
 resize only, deskew, contrast (CLAHE + bilateral filter) and both; blur, darkening and noise use fixed parameters
 (`src/evaluation/ocr_ablation.py`). The ablation crops the annotated lines, while the pipeline reads CRAFT boxes, so it
 measures the recogniser under each preprocessing setting rather than the end-to-end OCR error.

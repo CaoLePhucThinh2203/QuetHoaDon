@@ -4,6 +4,9 @@ Runs preprocessing, CRAFT, VietOCR and the token classifier, then prints one JSO
 same functions that produced the scored results (soft decoding + keyword / date rules).
 
 Examples:
+    # final configuration (fine-tuned VietOCR + M1b v3 + rules + items, short output for an app):
+    python scripts/extract_receipt.py --checkpoint m1b_v3_checkpoint/best --ocr-weights vietocr_finetuned.pth \
+        --nested-threshold 0.5 --postprocess --items --compact --image path/to/receipt.jpg
     python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best --image path/to/receipt.jpg --output out.json
     # reuse an OCR result and its preprocessed image (no CRAFT / VietOCR needed):
     python scripts/extract_receipt.py --checkpoint runs/m1b_v2_*/best \
@@ -34,6 +37,8 @@ def parse_args() -> argparse.Namespace:
                     help="fine-tuned VietOCR state dict (use it with the M1b checkpoint trained on that OCR)")
     ap.add_argument("--postprocess", action="store_true",
                     help="add the time next to the date and clean SELLER / ADDRESS (Week-5 decoding)")
+    ap.add_argument("--nested-threshold", type=float, default=None,
+                    help="nested-box filter of CRAFT (the final configuration uses 0.5; configs/model.yaml has 0.8)")
     ap.add_argument("--items", action="store_true",
                     help="also read the item lines (name, quantity, unit price, amount) with the rule based reader")
     ap.add_argument("--compact", action="store_true",
@@ -58,7 +63,7 @@ def main() -> None:
     print(f"[*] Loading models from {checkpoint} (device={args.device})", file=sys.stderr)
     extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, args.device, with_ocr=not use_json,
                                                  postprocess=args.postprocess, ocr_weights=args.ocr_weights,
-                                                 items=args.items)
+                                                 items=args.items, nested_threshold=args.nested_threshold)
     if use_json:
         with open(args.ocr_json, "r", encoding="utf-8") as f:
             result = extractor.extract_from_ocr(json.load(f), args.preprocessed_image)

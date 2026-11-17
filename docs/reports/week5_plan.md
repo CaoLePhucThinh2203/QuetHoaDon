@@ -4,6 +4,20 @@
 xác** hơn hạn chót: model phải đọc hóa đơn chuẩn nhất có thể, vì sau môn học có thể đưa vào một ứng dụng tải hóa đơn lên.
 Các yêu cầu Tuần 5 của giảng viên vẫn giữ (mục 8).*
 
+## 0. Trạng thái ngày 18/11/2026
+
+| Giai đoạn | Kết quả |
+| --- | --- |
+| 0. Mốc chuẩn | Xong (notebook 05): chỉ số đọc chuẩn, xác suất lưu sẵn, tái lập PASS |
+| 1. OCR | 1.2–1.3 xong: VietOCR tinh chỉnh, CER vùng validation 13,03 % → 6,49 %; bộ lọc hộp chồng 0,5; vòng 2 không cải thiện (kết quả âm). 1.1, 1.4–1.6 chưa làm |
+| 2. Model | 2.1 xong (M1b v3 trên OCR tinh chỉnh); 2.3 xong, kết quả âm (3 seed và ensemble không hơn); 2.2, 2.4, 2.5 không làm |
+| 3. Hậu xử lý | 3.2, 3.3 xong (luật ngày giờ, làm sạch SELLER / ADDRESS); 3.1 thử "tiền khách đưa − tiền thối", kết quả âm nên bỏ; 3.4 cố ý không làm (học thuộc tên cửa hàng của train) |
+| 4. Tập ảnh thật R | Không làm: nhóm không gán nhãn tay được; ghi vào hạn chế |
+| 5. Chốt và bàn giao | 5.1 PASS, 5.2 test chấm một lần (17/11), 5.3 độ trễ đo lại sau khi sửa lỗi, 5.7 tài liệu học; 5.4 và 5.6 qua notebook 07; 5.5 báo cáo cuối `week5_final_report.md` |
+| Mở rộng mặt hàng | Xong bằng luật, chấm bằng tổng tiền chuẩn (`items_plan.md`) |
+
+Quyết định ở mục 9: (1) test chấm lại một lần cho cấu hình cuối và ghi rõ; (2) không làm tập R; (3) làm xong trước khi nộp.
+
 ## 1. Mốc xuất phát (đã kiểm chứng)
 
 Nguồn: `week4_eval.zip` → `eval/m1b_v2_val.json`, `eval/m1b_v2_test.json` (model M1b v2, run `m1b_v2_20261110_183118`).

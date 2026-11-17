@@ -50,10 +50,13 @@ is equalised before detection.
 
 ## Known issues
 
-- **Image count mismatch.** The Colab notebook found 1044 images (path filter `data0.7`) while 1153 invoices are
-  valid. Find out which ~109 are missing before evaluating on the test split.
+- **Image count mismatch (resolved).** The early Colab notebook found 1044 images because of a path filter
+  (`data0.7`). On Kaggle (dataset "Vietnamese Receipts MC_OCR 2021") all 1153 valid receipts are present
+  (`run_ocr_dataset.py` reports 0 missing on disk).
 - **Leakage check covers `img_id` only.** The plan itself flags the risk of one receipt photographed 2-3 times and
-  split across train/test; near-duplicate detection (perceptual hash) is not implemented.
+  split across train/test. Near-duplicate detection is implemented (`scripts/find_duplicates.py`, text and image
+  signals) and about 10 % of validation / test receipts have a near-duplicate in train; scores without them come from
+  `scripts/rescore_without_duplicates.py` (Week 4: M1b test macro F1 0.642 instead of 0.658).
 - **Manifests store absolute `image_path`s** (e.g. `/kaggle/input/...`), which break on another machine; store paths relative to the dataset root.
 - **Quality.** `anno_image_quality` is parsed but not yet used to stratify the analysis.
 

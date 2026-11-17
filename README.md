@@ -52,7 +52,8 @@ QuetHoaDon/
 │   ├── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
 │   ├── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
 │   ├── 05_phase0_baseline_kaggle.ipynb  # accuracy baseline: strict app metrics, saved probabilities, error catalogue
-│   └── 06_phase1_ocr_kaggle.ipynb  # VietOCR fine-tuning, OCR rerun, M1b v3, scoring with date / time rules
+│   ├── 06_phase1_ocr_kaggle.ipynb  # VietOCR fine-tuning, OCR rerun, M1b v3, scoring with date / time rules
+│   └── 07_final_evaluation_kaggle.ipynb  # frozen final configuration: every reported number re-checked, demo photo -> JSON
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
@@ -77,7 +78,8 @@ QuetHoaDon/
 │   ├── run_ocr_dataset.py        # OCR of the whole dataset, optional fine-tuned weights
 │   ├── filter_nested_ocr.py      # offline nested-box filter of saved OCR
 │   ├── compare_ocr_runs.py       # ceiling of each OCR run on validation
-│   └── score_items.py            # item lines scored with the annotated total
+│   ├── score_items.py            # item lines scored with the annotated total
+│   └── compare_strict.py         # paired comparison of two decoded runs (McNemar, bootstrap)
 ├── src/                          # source code (table above)
 ├── tests/                        # 270+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
@@ -177,9 +179,12 @@ near-duplicate in train (macro F1 without them: M1b 0.642). How to train and sco
 | `notebooks/01_mc_ocr_eda.ipynb` | dataset audit: label taxonomy, missing images, resolutions, entity counts, samples | Kaggle / local |
 | `notebooks/02_pipeline_colab.ipynb` | install → build pipeline from `configs/` → 5-image smoke test → full resumable run → inspect a result | Colab GPU |
 | `notebooks/03_train_evaluate_kaggle.ipynb` | train M1b / M1a, run B0, score, compare, error analysis | Kaggle GPU |
-| `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` | end-to-end demo, latency (RQ3), preprocessing ablation (RQ1), duplicate check | Kaggle GPU |
+| `notebooks/04_week5_demo_latency_rq1_kaggle.ipynb` | end-to-end demo, latency (RQ3), preprocessing ablation (RQ1), duplicate check (Week-4 model) | Kaggle GPU |
+| `notebooks/05_phase0_baseline_kaggle.ipynb` | strict reading accuracy baseline, saved word probabilities, error catalogue | Kaggle GPU |
+| `notebooks/06_phase1_ocr_kaggle.ipynb` | VietOCR fine-tuning, OCR rerun, nested-box filter, M1b v3 training and scoring | Kaggle GPU |
+| `notebooks/07_final_evaluation_kaggle.ipynb` | **final configuration**: re-computes every reported number with KHỚP / LỆCH checks, latency, demo photo → JSON | Kaggle GPU |
 | `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
-| `scripts/extract_receipt.py` | receipt photo → seller, address, date, total with the fine-tuned model | GPU |
+| `scripts/extract_receipt.py` | receipt photo → seller, address, date and time, total, item lines (`--items --compact`) | GPU |
 | `scripts/train_layoutxlm.py`, `run_baseline_b0.py`, `evaluate_layoutxlm.py`, `compare_models.py` | train and score the three systems | GPU for training and scoring |
 
 Models: CRAFT and VietOCR (`vgg_transformer`) are pretrained and used for inference only; LayoutXLM-base
@@ -200,6 +205,13 @@ Install as in the [Quickstart](#quickstart-3-commands), then:
 ```bash
 python scripts/run_pipeline.py                                    # bundled sample, prints JSON
 python scripts/run_pipeline.py --image path/to/receipt.jpg --output outputs/receipt.json --device cpu
+```
+
+Final configuration on one photo (needs the M1b v3 checkpoint and the fine-tuned VietOCR weights, see 5.4):
+
+```bash
+python scripts/extract_receipt.py --checkpoint m1b_v3_checkpoint/best --ocr-weights vietocr_finetuned.pth \
+    --nested-threshold 0.5 --postprocess --items --compact --image path/to/receipt.jpg
 ```
 
 `craft-text-detector` and `vietocr` must be installed with `--no-deps` (they pin old torch/numpy versions); see the
@@ -234,8 +246,11 @@ may need small changes, especially transformers 5.x for the LayoutXLM processor.
 | Seed | 42 for every reported run |
 
 Order: run the OCR notebook, then `prepare_dataset.py` and `build_token_dataset.py` ([section 3](#3-data-preprocessing-steps)),
-then the commands in [`docs/training.md`](docs/training.md). Model weights are not stored in the repository; retrain with
-the M1b v2 command in that file (about 30 minutes on a T4).
+then the commands in [`docs/training.md`](docs/training.md) (section "Final configuration" for Week 5).
+`notebooks/07_final_evaluation_kaggle.ipynb` re-computes every reported number from the saved models and prints KHỚP when
+it matches. Model weights (M1b v3 checkpoint 1.4 GB, fine-tuned VietOCR 152 MB) are not stored in the repository; the
+team keeps them in a Kaggle dataset and on Google Drive, or they can be retrained with the commands in `docs/training.md`
+(VietOCR about 40 minutes, OCR of the dataset about 45 minutes, M1b about 30 minutes on a T4).
 
 ## Team
 

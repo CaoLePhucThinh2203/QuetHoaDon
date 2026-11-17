@@ -31,6 +31,7 @@ def main() -> None:
     ap.add_argument("--config-dir", default=str(ROOT / "configs"))
     ap.add_argument("--degradations", default="none", help=f"comma separated, from {','.join(DEGRADATIONS)}")
     ap.add_argument("--max-receipts", type=int, default=None, help="Use only the first N receipts (smoke test)")
+    ap.add_argument("--weights", default=None, help="fine-tuned VietOCR state dict (default: pretrained)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     ap.add_argument("--n-boot", type=int, default=1000)
     ap.add_argument("--out", required=True, help="JSON report")
@@ -48,14 +49,16 @@ def main() -> None:
         import torch
         device = "cuda" if torch.cuda.is_available() else "cpu"
     model_cfg = load_config(args.config_dir)["model"]
-    rec_cfg = model_cfg["recognition"]
+    rec_cfg = dict(model_cfg["recognition"])
+    if args.weights:
+        rec_cfg["weights"] = args.weights
     recognizer = VietOCRRecognizer(rec_cfg, device=device, batch_size=rec_cfg["batch_size"])
 
     items = load_items(args.csv, args.split_manifest, "validation", args.image_dir, args.max_receipts)
     print(f"[*] {len(items)} validation receipts, degradations={degradations}, device={device}", file=sys.stderr)
     result = run_ablation(items, recognizer, model_cfg["preprocessing"]["target_max_dim"], CONFIGS, degradations)
     report = build_report(result, degradations, list(CONFIGS), args.n_boot)
-    report.update({"split": "validation", "degradations": degradations, "configs": CONFIGS, "device": device,
+    report.update({"split": "validation", "weights": args.weights, "degradations": degradations, "configs": CONFIGS, "device": device,
                    "recognizer_errors": getattr(recognizer, "n_errors", 0)})
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
