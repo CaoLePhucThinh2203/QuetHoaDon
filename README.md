@@ -149,8 +149,8 @@ McNemar test and bootstrap over receipts): SELLER +15.0 points [+7.5, +22.4] (p 
 VietOCR fine-tuning (validation, region crops): CER 13.03 % -> 6.49 %. The SELLER / ADDRESS clean-up rules were written
 after reading validation errors, so the validation numbers are optimistic; the test numbers above are not.
 
-**Speed (Kaggle T4, test receipts).** OCR 2.58 s per receipt (preprocessing 0.11 s, CRAFT 0.62 s, VietOCR 1.85 s); LayoutXLM
-stage 61.6 ms on GPU (p95 86.8 ms) and 966.5 ms on CPU. `scripts/verify_extractor.py` reproduces the stored Week-4
+**Speed (Kaggle T4, test receipts).** OCR 2.43 s per receipt (preprocessing 0.11 s, CRAFT 0.61 s, VietOCR 1.72 s); LayoutXLM
+stage 58.9 ms on GPU (p95 86.0 ms) and 913.2 ms on CPU. `scripts/verify_extractor.py` reproduces the stored Week-4
 predictions of the end-to-end path on all 115 validation receipts (0 differences, PASS).
 
 **Item lines (name, quantity, unit price, amount).** MC-OCR has no item labels, so the reader is rule based and scored by
