@@ -21,7 +21,16 @@ SELLER/ADDRESS.
 | F1 chịu lỗi OCR (macro) | 0.6636 | 0.7800 |
 | Trường sai do OCR đọc sai chữ | 95 | 52 |
 
-Khoảng tin cậy 95 % của hai cột còn chồng nhau; chưa có so sánh ghép cặp (việc P0.3).
+So sánh ghép cặp trên cùng các hóa đơn (`scripts/compare_strict.py`, McNemar chính xác và bootstrap theo hóa đơn, file
+`eval/paired_test.json`): SELLER +15,0 điểm [+7,5; +22,4] (p = 0,0004; 18 hóa đơn chỉ bản cuối đúng, 2 hóa đơn chỉ Tuần 4 đúng);
+ADDRESS +11,3 [+5,7; +17,9] (p = 0,0005; 12 so với 0); ngày và giờ +17,0 [+9,4; +24,5] (p < 0,0001; 19 so với 1); cả bốn
+trường +8,8 [+3,5; +14,0] (p = 0,002; 10 so với 0). Tổng tiền +7,1 [+1,0; +14,3] nhưng p = 0,065 (9 so với 2): chưa đủ để
+kết luận tổng tiền cải thiện có ý nghĩa thống kê.
+
+**Vòng 2 tinh chỉnh VietOCR: kết quả âm.** Tiếp tục huấn luyện từ trọng số vòng 1 (23 410 cặp, LR 5e-5, tối đa 20 epoch)
+không giảm CER vùng validation: epoch 0 (điểm xuất phát) 6,28 %, rồi 6,98 / 6,56 / 6,82 / 6,73 %, dừng sớm sau 4 epoch không
+cải thiện. Cổng đã chốt trước (khoảng tin cậy ghép cặp nằm dưới 0) không đạt nên M1b v4 không được huấn luyện; giữ cấu hình
+VietOCR vòng 1 + M1b v3. Hàm mất mát đứng yên khoảng 0,50 ngay từ epoch 1, cho thấy mô hình đã bão hòa trên dữ liệu này.
 
 Độ trễ (`eval/latency_v3_fixed.json`, Kaggle GPU T4, tập test, đo sau khi sửa lỗi cửa sổ): OCR 2,58 s mỗi hóa đơn
 (tiền xử lý 0,11, CRAFT 0,62, VietOCR 1,85); khâu LayoutXLM 61,6 ms trên GPU (trung vị 57,3, p95 86,8, 60 hóa đơn) và
@@ -93,9 +102,9 @@ test là con số đưa vào báo cáo. Nhãn `verified` vẫn đáng tin trên 
 
 | # | Việc | Phụ thuộc | Xong khi | Trạng thái |
 | --- | --- | --- | --- | --- |
-| P0.1 | Tải về `test_results.zip` và `latency_v3.json` (cell 7 chỉ nén `eval/*test*`, nén riêng `latency_v3.json`) | — | Hai file nằm ngoài Kaggle | chờ |
+| P0.1 | Tải về `test_results.zip` | — | File nằm ngoài Kaggle và trên Drive | xong |
 | P0.2 | Tìm nguyên nhân khâu LayoutXLM chậm bất thường | P0.1 | Tìm ra (tokenizer giữ chế độ đệm), sửa, đo lại: 61,6 ms GPU, 966,5 ms CPU; `verify_extractor` PASS | xong |
-| P0.3 | So sánh ghép cặp trên cùng 114 hóa đơn test giữa cấu hình cuối và M1b Tuần 4 | P0.1 | Khoảng tin cậy của hiệu số từng trường | chưa làm |
+| P0.3 | So sánh ghép cặp trên cùng 114 hóa đơn test giữa cấu hình cuối và M1b Tuần 4 | P0.1 | Khoảng tin cậy của hiệu số từng trường | xong |
 | 1 | Module đọc mặt hàng + tự kiểm tra + unit test | — | `tests/test_line_items.py` | xong |
 | 2 | Chỉ số chấm bằng tổng chuẩn (`scripts/score_items.py`) | 1 | Bảng train, validation | xong |
 | 3 | Đầu ra gọn (`compact_result`, `--items`, `--compact`): ẩn trường không đọc được, tách giờ khỏi ngày, SELLER riêng | 1 | `tests/test_extractor_items.py` | xong |

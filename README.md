@@ -128,8 +128,10 @@ Details: [`docs/dataset.md`](docs/dataset.md#preprocessing-steps).
 Test split, 116 receipts, scored **once** after the configuration was frozen. Strict reading accuracy: the predicted text
 must equal the annotated text after normalisation (what a user of an upload-a-receipt app would see). "Week 4" is M1b v2
 with the Week-4 decoding plus the date / time rules; "final" is fine-tuned VietOCR + nested-box filter 0.5 + M1b v3 + date /
-time rules + SELLER / ADDRESS clean-up. The 95 % Wilson intervals of the two columns still overlap for single fields and no
-paired test has been run yet, so the gain is not yet shown to be statistically significant.
+time rules + SELLER / ADDRESS clean-up. Paired comparison over the same receipts (`scripts/compare_strict.py`, exact
+McNemar test and bootstrap over receipts): SELLER +15.0 points [+7.5, +22.4] (p = 0.0004), ADDRESS +11.3 [+5.7, +17.9]
+(p = 0.0005), date and time +17.0 [+9.4, +24.5] (p < 0.0001), all four fields +8.8 [+3.5, +14.0] (p = 0.002). Total
++7.1 [+1.0, +14.3] but McNemar p = 0.065, so the gain on the total is not shown to be significant.
 
 | Exactly right | Week 4 + date / time rules | Final configuration |
 | --- | --- | --- |
