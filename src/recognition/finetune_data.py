@@ -21,6 +21,8 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from tqdm.auto import tqdm
+
 from src.common.bbox_utils import contains_ratio
 from src.evaluation.metrics import cer, normalize_text
 from src.preprocessing.annotation_parser import load_and_validate_mcocr_csv
@@ -195,7 +197,8 @@ def build_pair_set(csv_path: str, ocr_dir: str, image_dir: str, split_manifest: 
                   "too_small": 0, "line": 0, "region": 0, "line_skipped_cer": 0, "region_skipped_cer": 0,
                   "region_skipped_empty": 0}
         with open(os.path.join(out_dir, split, "pairs.jsonl"), "w", encoding="utf-8") as out:
-            for img_id in sorted(i for i, s in split_of.items() if s == split and i in by_id):
+            wanted = sorted(i for i, s in split_of.items() if s == split and i in by_id)
+            for img_id in tqdm(wanted, desc=f"pairs {split}"):
                 file_id = os.path.splitext(img_id)[0]
                 json_path = os.path.join(ocr_dir, f"{file_id}.json")
                 if not os.path.exists(json_path):

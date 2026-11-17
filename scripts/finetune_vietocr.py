@@ -65,10 +65,10 @@ def cmd_train(args: argparse.Namespace) -> None:
     weights = os.path.join(args.out, "vietocr_finetuned.pth")
     print(f"[ft] device={device} train pairs={len(train_rows)} validation pairs={len(val_rows)}", flush=True)
 
-    base = VietOCRFineTuner(load_vietocr(device), args.batch_size, args.seed)
+    base = VietOCRFineTuner(load_vietocr(device, args.init_weights), args.batch_size, args.seed)
     before = base.evaluate(val_rows)
     del base
-    tuner = VietOCRFineTuner(load_vietocr(device), args.batch_size, args.seed)
+    tuner = VietOCRFineTuner(load_vietocr(device, args.init_weights), args.batch_size, args.seed)
     fit = tuner.fit(train_rows, val_rows, weights, args.epochs, args.lr, args.patience,
                     log=lambda m: print(m, flush=True))
     after = tuner.evaluate(val_rows)
@@ -83,7 +83,7 @@ def cmd_train(args: argparse.Namespace) -> None:
     examples = [{"img_id": r["img_id"], "label": r["label"], "kind": r["kind"], "gold": r["text"],
                  "pretrained": b, "finetuned": a}
                 for r, b, a in zip(val_rows, before["hyps"], after["hyps"]) if b != a][:200]
-    report = {"split": "validation", "train_pairs": len(train_rows), "validation_pairs": len(val_rows),
+    report = {"split": "validation", "init_weights": args.init_weights, "train_pairs": len(train_rows), "validation_pairs": len(val_rows),
               "settings": {k: getattr(args, k) for k in ("epochs", "lr", "batch_size", "patience", "seed", "kinds")},
               "fit": fit, "pretrained": _strip(before), "finetuned": _strip(after),
               "paired_finetuned_minus_pretrained": paired, "changed_examples": examples}
@@ -129,6 +129,9 @@ def main() -> None:
     t.add_argument("--kinds", default="line,region", help="pair kinds used for training: line,region | region | line")
     t.add_argument("--max-train", type=int, default=None, help="use only the first N training pairs (smoke test)")
     t.add_argument("--n-boot", type=int, default=1000)
+    t.add_argument("--init-weights", default=None,
+                   help="start from this fine-tuned state dict (round 2); the 'pretrained' columns of the report are then "
+                        "this starting model, so the gate measures the gain of this round only")
     t.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
 
     args = ap.parse_args()
