@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.pipeline.extractor import ReceiptExtractor  # noqa: E402
+from src.pipeline.extractor import ReceiptExtractor, compact_result  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,6 +34,10 @@ def parse_args() -> argparse.Namespace:
                     help="fine-tuned VietOCR state dict (use it with the M1b checkpoint trained on that OCR)")
     ap.add_argument("--postprocess", action="store_true",
                     help="add the time next to the date and clean SELLER / ADDRESS (Week-5 decoding)")
+    ap.add_argument("--items", action="store_true",
+                    help="also read the item lines (name, quantity, unit price, amount) with the rule based reader")
+    ap.add_argument("--compact", action="store_true",
+                    help="short output for an app: only fields that were read, time split from the date, items if any")
     ap.add_argument("--show-words", action="store_true", help="Also print every word with its box and predicted tag")
     return ap.parse_args()
 
@@ -53,14 +57,17 @@ def main() -> None:
 
     print(f"[*] Loading models from {checkpoint} (device={args.device})", file=sys.stderr)
     extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, args.device, with_ocr=not use_json,
-                                                 postprocess=args.postprocess, ocr_weights=args.ocr_weights)
+                                                 postprocess=args.postprocess, ocr_weights=args.ocr_weights,
+                                                 items=args.items)
     if use_json:
         with open(args.ocr_json, "r", encoding="utf-8") as f:
             result = extractor.extract_from_ocr(json.load(f), args.preprocessed_image)
     else:
         result = extractor.extract(args.image)
 
-    if not args.show_words:
+    if args.compact:
+        result = compact_result(result)
+    elif not args.show_words:
         result.pop("words", None)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     print(text)

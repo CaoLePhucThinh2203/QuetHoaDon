@@ -23,8 +23,10 @@ import numpy as np
 
 from src.common.bbox_utils import normalize_bbox
 from src.evaluation.metrics import normalize_amount
+from src.evaluation.app_metrics import extract_time
 from src.extraction.datetime_rules import improve_timestamps
 from src.extraction.field_cleanup import clean_predictions
+from src.extraction.line_items import check_items, extract_items
 from src.extraction.rules import fill_missing
 from src.extraction.schema import ANNOTATED_FIELDS
 from src.preprocessing.token_dataset import ID2LABEL, items_to_words
@@ -86,14 +88,40 @@ def empty_fields() -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def compact_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Short output for an app: only what was read, nothing is shown for a field the receipt does not have.
+
+    ``TIMESTAMP`` gets ``time`` (hh:mm) next to ``date``; ``items`` and ``items_check`` appear only when item lines were
+    read. SELLER is a separate, optional entry. The words, boxes and timing stay in the full result for debugging.
+    """
+    fields = result.get("fields", {})
+    out: Dict[str, Any] = {"file_id": result.get("file_id"), "fields": {}}
+    for name in ("TIMESTAMP", "TOTAL_COST", "SELLER", "ADDRESS"):
+        f = fields.get(name) or {}
+        if not f.get("text"):
+            continue
+        entry: Dict[str, Any] = {"text": f["text"]}
+        if name == "TIMESTAMP":
+            entry.update({k: v for k, v in (("date", f.get("date")), ("time", extract_time(f["text"]))) if v})
+        if name == "TOTAL_COST" and f.get("amount_vnd") is not None:
+            entry["amount_vnd"] = f["amount_vnd"]
+        out["fields"][name] = entry
+    if result.get("items"):
+        out["items"] = [{k: it[k] for k in ("name", "quantity", "unit_price", "amount")} for it in result["items"]]
+        out["items_check"] = {k: v for k, v in result["items_check"].items() if k in ("sum", "status", "predicted_total")}
+    return out
+
+
 # ---------------------------------------------------------------------------------- the extractor
 class ReceiptExtractor:
     """OCR pipeline + token classifier. ``ocr_pipeline`` may be ``None`` when only ``extract_from_ocr`` is used."""
 
-    def __init__(self, probs_fn: ProbsFn, ocr_pipeline: Any = None, postprocess: bool = False) -> None:
+    def __init__(self, probs_fn: ProbsFn, ocr_pipeline: Any = None, postprocess: bool = False,
+                 items: bool = False) -> None:
         self.probs_fn = probs_fn
         self.ocr_pipeline = ocr_pipeline
         self.postprocess = postprocess
+        self.items = items
 
     def _run(self, record: Dict[str, Any], image_dir: str, boxes: List[List[float]], bbox_unit: str,
              timing_in: Optional[Dict[str, float]], skew_angle: Any) -> Dict[str, Any]:
@@ -108,7 +136,13 @@ class ReceiptExtractor:
         timing = dict(timing_in or {})
         timing["layoutxlm"] = round(layout_sec, 3)
         timing["total"] = round(sum(v for k, v in timing.items() if k not in ("total", "features")), 3)
-        return {
+        read_items = None
+        if self.items and record["words"]:        # rule based, on the normalised boxes (the scored setting)
+            read_items = extract_items(record["words"], record["boxes"])
+            check = check_items(read_items["items"], read_items["summary_amounts"])
+            check["predicted_total"] = fields["TOTAL_COST"].get("amount_vnd")
+            read_items["check"] = check
+        result = {
             "file_id": record["img_id"],
             "fields": fields,
             "n_words": len(record["words"]),
@@ -117,6 +151,10 @@ class ReceiptExtractor:
             "words": [{"text": w, "bbox": b, "tag": t} for w, b, t in zip(record["words"], boxes, tags)],
             "timing_sec": timing,
         }
+        if read_items is not None:
+            result["items"] = read_items["items"]
+            result["items_check"] = read_items["check"]
+        return result
 
     def extract_from_ocr(self, meta: Dict[str, Any], preprocessed_image: str) -> Dict[str, Any]:
         """Fields from an existing OCR result and the preprocessed image it was computed on."""
@@ -152,7 +190,7 @@ class ReceiptExtractor:
     @classmethod
     def from_checkpoint(cls, checkpoint: str, config_dir: str = "configs", device: str = "auto",
                         with_ocr: bool = True, postprocess: bool = False,
-                        ocr_weights: Optional[str] = None) -> "ReceiptExtractor":
+                        ocr_weights: Optional[str] = None, items: bool = False) -> "ReceiptExtractor":
         """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR.
 
         ``ocr_weights`` is the fine-tuned VietOCR state dict; the checkpoint must have been trained on the OCR of the
@@ -180,7 +218,7 @@ class ReceiptExtractor:
         if ocr_weights:
             cfg["recognition"] = dict(cfg["recognition"], weights=ocr_weights)
         pipeline = build_ocr_pipeline(cfg, device) if with_ocr else None
-        return cls(probs_fn, pipeline, postprocess)
+        return cls(probs_fn, pipeline, postprocess, items)
 
 
 def build_ocr_pipeline(model_cfg: Dict[str, Any], device: str):
