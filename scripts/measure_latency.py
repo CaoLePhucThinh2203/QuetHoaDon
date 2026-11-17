@@ -36,8 +36,10 @@ from src.training.field_eval import decode_predictions_soft  # noqa: E402
 
 
 def time_receipts(run_one, records, warmup):
+    from tqdm.auto import tqdm
+
     times = []
-    for i, rec in enumerate(records):
+    for i, rec in enumerate(tqdm(records, desc="latency", leave=False)):
         t0 = time.perf_counter()
         run_one(rec)
         dt = time.perf_counter() - t0

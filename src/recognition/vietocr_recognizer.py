@@ -1,4 +1,8 @@
-"""VietOCR (vgg_transformer) recognizer - pretrained, inference only."""
+"""VietOCR (vgg_transformer) recognizer, inference only.
+
+Pretrained weights by default; ``config["weights"]`` (a local state dict written by ``scripts/finetune_vietocr.py``)
+loads a fine-tuned model instead. Nothing else changes, so the two can be compared on the same crops.
+"""
 from typing import List, Optional
 
 import numpy as np
@@ -16,6 +20,8 @@ class VietOCRRecognizer(BaseTextRecognizer):
         cfg = Cfg.load_config_from_name(c.get("backbone", "vgg_transformer"))
         cfg["device"] = device
         cfg["predictor"]["beamsearch"] = c.get("beamsearch", False)
+        if c.get("weights"):
+            cfg["weights"] = c["weights"]
         self.predictor = Predictor(cfg)
 
     def recognize_batch(self, crops_rgb: List[np.ndarray]) -> List[TextRecognitionResult]:

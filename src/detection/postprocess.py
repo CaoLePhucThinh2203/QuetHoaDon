@@ -55,3 +55,22 @@ def sort_reading_order(regions: List[TextRegion]) -> List[TextRegion]:
     for ln in lines:
         ordered.extend(sorted(ln["items"], key=lambda r: r.bbox[0]))
     return ordered
+
+
+def filter_nested_items(items: List[dict], thr: float) -> List[dict]:
+    """``drop_nested`` applied to the ``ocr_items`` of an OCR JSON (order kept, ``region_id`` renumbered).
+
+    Lets a stricter nested threshold be tried on an existing OCR run without detecting and reading again. It is the
+    same as re-running the pipeline with ``nested_threshold=thr``, except that boxes whose reading was empty (and were
+    therefore not saved) can no longer remove the boxes inside them.
+    """
+    regions = [TextRegion(polygon=it.get("polygon") or [], bbox=list(it["bbox"]), orig_bbox=list(it.get("orig_bbox") or it["bbox"]))
+               for it in items]
+    kept_ids = {id(r) for r in drop_nested(regions, thr)}
+    out: List[dict] = []
+    for it, r in zip(items, regions):
+        if id(r) in kept_ids:
+            new = dict(it)
+            new["region_id"] = new["reading_order"] = len(out)
+            out.append(new)
+    return out

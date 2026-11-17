@@ -25,6 +25,12 @@ def load_jsonl(path: str) -> List[Dict[str, Any]]:
 def word_token_counts(tokenizer: Any, words: Sequence[str]) -> List[int]:
     """Sub-token count of every word (>= 1). Falls back to a length estimate if the tokenizer cannot tokenize."""
     counts: List[int] = []
+    # A processor call with padding="max_length" can leave the fast tokenizer padding every later encoding to 512
+    # tokens; without this reset every word then counts as ~512 sub-tokens and each gets a window of its own.
+    backend = getattr(tokenizer, "_tokenizer", None)
+    if backend is not None and hasattr(backend, "no_padding"):
+        backend.no_padding()
+        backend.no_truncation()
     for w in words:
         try:
             counts.append(max(1, len(tokenizer.tokenize(w))))

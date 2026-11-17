@@ -7,6 +7,9 @@ Data -> Model -> Output
 
 The fields are decoded with **exactly the functions that scored the Week-4 results** (soft decoding of the total and
 the date, then the keyword / date rules for empty fields), so a demo result is produced the same way as a scored one.
+``postprocess=True`` adds the Week-5 steps scored on validation: the time next to the date
+(``src/extraction/datetime_rules.py``) and the SELLER / ADDRESS clean-up (``src/extraction/field_cleanup.py``).
+It is off by default so ``verify_extractor.py`` still reproduces the Week-4 predictions.
 
 The class is split so that everything except the neural network is plain Python and unit-tested: the network is a
 function ``probs_fn(record, image_dir) -> array [n_words, 9]`` that ``from_checkpoint`` builds with torch.
@@ -20,6 +23,10 @@ import numpy as np
 
 from src.common.bbox_utils import normalize_bbox
 from src.evaluation.metrics import normalize_amount
+from src.evaluation.app_metrics import extract_time
+from src.extraction.datetime_rules import improve_timestamps
+from src.extraction.field_cleanup import clean_predictions
+from src.extraction.line_items import check_items, extract_items
 from src.extraction.rules import fill_missing
 from src.extraction.schema import ANNOTATED_FIELDS
 from src.preprocessing.token_dataset import ID2LABEL, items_to_words
@@ -49,7 +56,8 @@ def record_from_ocr(meta: Dict[str, Any], image_name: str) -> Dict[str, Any]:
     }
 
 
-def fields_from_probs(record: Dict[str, Any], probs: np.ndarray) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+def fields_from_probs(record: Dict[str, Any], probs: np.ndarray, postprocess: bool = False
+                      ) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
     """Decode word probabilities into the four fields and the predicted BIO tag of every word.
 
     Each field has ``text`` (or ``None``), ``status`` (``found`` or ``not_found``) and ``source`` (``model`` when the
@@ -59,11 +67,12 @@ def fields_from_probs(record: Dict[str, Any], probs: np.ndarray) -> Tuple[Dict[s
     img_id = record["img_id"]
     merged = [{"probs": probs, "covered": np.ones(len(probs), dtype=bool)}]
     soft = decode_predictions_soft([record], merged)
-    final = fill_missing([record], soft)
+    filled = fill_missing([record], soft)
+    final = clean_predictions(improve_timestamps([record], filled)) if postprocess else filled
     fields: Dict[str, Dict[str, Any]] = {}
     for name in ANNOTATED_FIELDS:
         text = final[img_id].get(name)
-        source = None if not text else ("rule" if text != soft[img_id].get(name) else "model")
+        source = None if not text else ("rule" if filled[img_id].get(name) != soft[img_id].get(name) else "model")
         fields[name] = {"text": text, "status": "found" if text else "not_found", "source": source}
     total = fields["TOTAL_COST"]["text"]
     fields["TOTAL_COST"]["amount_vnd"] = normalize_amount(total) if total else None
@@ -79,20 +88,47 @@ def empty_fields() -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def compact_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Short output for an app: only what was read, nothing is shown for a field the receipt does not have.
+
+    ``TIMESTAMP`` gets ``time`` (hh:mm) next to ``date``; ``items`` and ``items_check`` appear only when item lines were
+    read. SELLER is a separate, optional entry. The words, boxes and timing stay in the full result for debugging.
+    """
+    fields = result.get("fields", {})
+    out: Dict[str, Any] = {"file_id": result.get("file_id"), "fields": {}}
+    for name in ("TIMESTAMP", "TOTAL_COST", "SELLER", "ADDRESS"):
+        f = fields.get(name) or {}
+        if not f.get("text"):
+            continue
+        entry: Dict[str, Any] = {"text": f["text"]}
+        if name == "TIMESTAMP":
+            entry.update({k: v for k, v in (("date", f.get("date")), ("time", extract_time(f["text"]))) if v})
+        if name == "TOTAL_COST" and f.get("amount_vnd") is not None:
+            entry["amount_vnd"] = f["amount_vnd"]
+        out["fields"][name] = entry
+    if result.get("items"):
+        out["items"] = [{k: it[k] for k in ("name", "quantity", "unit_price", "amount")} for it in result["items"]]
+        out["items_check"] = {k: v for k, v in result["items_check"].items() if k in ("sum", "status", "predicted_total")}
+    return out
+
+
 # ---------------------------------------------------------------------------------- the extractor
 class ReceiptExtractor:
     """OCR pipeline + token classifier. ``ocr_pipeline`` may be ``None`` when only ``extract_from_ocr`` is used."""
 
-    def __init__(self, probs_fn: ProbsFn, ocr_pipeline: Any = None) -> None:
+    def __init__(self, probs_fn: ProbsFn, ocr_pipeline: Any = None, postprocess: bool = False,
+                 items: bool = False) -> None:
         self.probs_fn = probs_fn
         self.ocr_pipeline = ocr_pipeline
+        self.postprocess = postprocess
+        self.items = items
 
     def _run(self, record: Dict[str, Any], image_dir: str, boxes: List[List[float]], bbox_unit: str,
              timing_in: Optional[Dict[str, float]], skew_angle: Any) -> Dict[str, Any]:
         t0 = time.perf_counter()
         if record["words"]:
             probs = np.asarray(self.probs_fn(record, image_dir), dtype=np.float64)
-            fields, tags = fields_from_probs(record, probs)
+            fields, tags = fields_from_probs(record, probs, self.postprocess)
         else:
             fields, tags = empty_fields(), []
         layout_sec = time.perf_counter() - t0
@@ -100,7 +136,13 @@ class ReceiptExtractor:
         timing = dict(timing_in or {})
         timing["layoutxlm"] = round(layout_sec, 3)
         timing["total"] = round(sum(v for k, v in timing.items() if k not in ("total", "features")), 3)
-        return {
+        read_items = None
+        if self.items and record["words"]:        # rule based, on the normalised boxes (the scored setting)
+            read_items = extract_items(record["words"], record["boxes"])
+            check = check_items(read_items["items"], read_items["summary_amounts"])
+            check["predicted_total"] = fields["TOTAL_COST"].get("amount_vnd")
+            read_items["check"] = check
+        result = {
             "file_id": record["img_id"],
             "fields": fields,
             "n_words": len(record["words"]),
@@ -109,6 +151,10 @@ class ReceiptExtractor:
             "words": [{"text": w, "bbox": b, "tag": t} for w, b, t in zip(record["words"], boxes, tags)],
             "timing_sec": timing,
         }
+        if read_items is not None:
+            result["items"] = read_items["items"]
+            result["items_check"] = read_items["check"]
+        return result
 
     def extract_from_ocr(self, meta: Dict[str, Any], preprocessed_image: str) -> Dict[str, Any]:
         """Fields from an existing OCR result and the preprocessed image it was computed on."""
@@ -143,8 +189,13 @@ class ReceiptExtractor:
 
     @classmethod
     def from_checkpoint(cls, checkpoint: str, config_dir: str = "configs", device: str = "auto",
-                        with_ocr: bool = True) -> "ReceiptExtractor":
-        """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR."""
+                        with_ocr: bool = True, postprocess: bool = False,
+                        ocr_weights: Optional[str] = None, items: bool = False) -> "ReceiptExtractor":
+        """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR.
+
+        ``ocr_weights`` is the fine-tuned VietOCR state dict; the checkpoint must have been trained on the OCR of the
+        same recogniser (M1b v3 goes with the fine-tuned VietOCR, M1b v2 with the pretrained one).
+        """
         import torch
         from transformers import AutoProcessor
 
@@ -164,8 +215,10 @@ class ReceiptExtractor:
             merged, _ = predict_dataset(model, ds, [record], device, use_amp=True, batch_size=8, num_workers=0)
             return merged[0]["probs"]
 
+        if ocr_weights:
+            cfg["recognition"] = dict(cfg["recognition"], weights=ocr_weights)
         pipeline = build_ocr_pipeline(cfg, device) if with_ocr else None
-        return cls(probs_fn, pipeline)
+        return cls(probs_fn, pipeline, postprocess, items)
 
 
 def build_ocr_pipeline(model_cfg: Dict[str, Any], device: str):

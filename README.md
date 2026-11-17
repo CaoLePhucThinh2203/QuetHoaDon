@@ -7,38 +7,12 @@ Read a photo of a Vietnamese receipt and extract structured information (seller,
 
 ![Pipeline architecture](assets/pipeline_architecture.png)
 
-> **Status (Week 4 done, moving to Week 5).** The full pipeline runs: preprocessing → CRAFT → VietOCR → LayoutXLM
-> features → field extraction. Three systems were trained and scored on the same OCR output and split: baseline B0
-> (Week 3 pipeline), M1a (frozen LayoutXLM + linear head) and M1b (fine-tuned LayoutXLM). On the test split M1b reaches
-> macro F1 0.658 against 0.352 for B0, see [Results](#results-week-4-one-seed). Still open: an end-to-end demo,
-> OCR fine-tuning (RQ1), the spending-category classifier and more seeds. Plan and status:
-> [`docs/reports/`](docs/reports/).
-
-## Quickstart (3 commands)
-
-```bash
-git clone https://github.com/CaoLePhucThinh2203/QuetHoaDon.git && cd QuetHoaDon
-pip install -r requirements.txt && pip install craft-text-detector vietocr --no-deps \
-    && pip install gdown einops prefetch_generator albumentations lmdb imgaug
-python scripts/run_pipeline.py --image assets/samples/sample_receipt.jpg --output outputs/sample_receipt.json
-```
-
-The last command preprocesses the bundled sample, detects text with CRAFT, reads it with VietOCR and prints the
-OCR result as JSON (text, confidence and box of every line in reading order, plus per-stage timing). It runs on CPU
-or GPU (`--device auto|cpu|cuda`); pretrained weights are downloaded on first use. To run only the unit
-tests, see [5.3](#53-unit-tests-no-gpu).
-
-## Problem statement
-
-Entering expenses by hand is slow and error-prone, so many people give up tracking their spending. This project
-combines OCR and Key Information Extraction to read photos of Vietnamese retail receipts, extract the seller,
-address, date and total, and assign the receipt to a spending category (food / move / study / shop / other).
-
-- **RQ1 (Robustness):** How much do image preprocessing (denoising, lighting/contrast correction) and data
-  augmentation improve text recognition on blurred, wrinkled or poorly lit receipts?
-- **RQ2 (Extraction & classification):** Which model architecture extracts the total amount most accurately and
-  best assigns receipts to standard spending categories?
-- **RQ3 (Efficiency & latency):** What is the trade-off between accuracy and response time across the compared models?
+> **Status (Week 5).** The full pipeline runs: preprocessing → CRAFT → VietOCR → LayoutXLM → field extraction. The
+> Week-5 work raised reading accuracy: VietOCR was fine-tuned on MC-OCR line crops, LayoutXLM (M1b v3) was retrained on
+> that OCR, and date / time and SELLER / ADDRESS clean-up rules were added. On the test split (scored once) the share of
+> receipts with all four fields read exactly right went from 9.6 % to 18.4 %, see [Results](#results-week-5-final-configuration-test-split).
+> A rule-based reader for item lines (name, quantity, unit price, amount) was added on top, scored with the annotated
+> total. Plan and status: [`docs/reports/`](docs/reports/).
 
 ## 1. Source code
 
@@ -51,6 +25,8 @@ All logic lives in `src/`, one package per pipeline stage; notebooks and scripts
 | 2 OCR (VietOCR) | `src/recognition/` | implemented; logic unit-tested, model call verified on Colab |
 | 3 Features (LayoutXLM) | `src/features/` | implemented, not unit-tested end to end |
 | 4 Field extraction | `src/extraction/`, `src/training/` | BIO decoding, soft decoding and keyword / date rules; M1b and M1a trained and scored (Kaggle T4) |
+| 4b Item lines | `src/extraction/line_items.py` | rule based (no item labels in MC-OCR); scored by the annotated total |
+| OCR fine-tuning | `src/recognition/finetune*.py` | VietOCR fine-tuned on line and CRAFT-region crops; gate on validation CER |
 | Baseline B0 | `src/baseline/b0.py` | frozen features + K-means + cluster-to-field mapping; scored on validation and test |
 | Orchestration | `src/pipeline/runner.py` | `ReceiptPipeline.predict()` (one image, OCR only), `.run()` (dataset, resumable) |
 | Evaluation | `src/evaluation/`, `src/training/field_eval.py` | CER/WER, detection recall, field P/R/F1 (strict and OCR-tolerant), bootstrap CI, error causes |
@@ -75,7 +51,8 @@ QuetHoaDon/
 │   ├── 02_pipeline_colab.ipynb   # full OCR run on the dataset (Colab GPU)
 │   ├── 03_train_evaluate_kaggle.ipynb  # training, scoring and comparison (Kaggle T4)
 │   ├── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
-│   └── 05_phase0_baseline_kaggle.ipynb  # accuracy baseline: strict app metrics, saved probabilities, error catalogue
+│   ├── 05_phase0_baseline_kaggle.ipynb  # accuracy baseline: strict app metrics, saved probabilities, error catalogue
+│   └── 06_phase1_ocr_kaggle.ipynb  # VietOCR fine-tuning, OCR rerun, M1b v3, scoring with date / time rules
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
@@ -95,9 +72,14 @@ QuetHoaDon/
 │   ├── verify_extractor.py       # the demo path must reproduce the scored Week-4 predictions
 │   ├── decode_from_probs.py      # decode saved word probabilities offline, strict app scores, error table
 │   ├── score_app_metrics.py      # strict reading accuracy of saved reports
-│   └── ocr_error_catalog.py      # first sort of OCR-text errors for the manual review
+│   ├── ocr_error_catalog.py      # first sort of OCR-text errors for the manual review
+│   ├── finetune_vietocr.py       # build crop / text pairs and fine-tune VietOCR (validation gate)
+│   ├── run_ocr_dataset.py        # OCR of the whole dataset, optional fine-tuned weights
+│   ├── filter_nested_ocr.py      # offline nested-box filter of saved OCR
+│   ├── compare_ocr_runs.py       # ceiling of each OCR run on validation
+│   └── score_items.py            # item lines scored with the annotated total
 ├── src/                          # source code (table above)
-├── tests/                        # 150+ unit tests, no GPU needed
+├── tests/                        # 270+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
 └── requirements-dev.txt          # light deps for the unit tests / CI
 ```
@@ -140,6 +122,40 @@ python scripts/build_token_dataset.py --csv <dataset>/mcocr_train_df.csv \
 ```
 
 Details: [`docs/dataset.md`](docs/dataset.md#preprocessing-steps).
+
+## Results (Week 5, final configuration, test split)
+
+Test split, 116 receipts, scored **once** after the configuration was frozen. Strict reading accuracy: the predicted text
+must equal the annotated text after normalisation (what a user of an upload-a-receipt app would see). "Week 4" is M1b v2
+with the Week-4 decoding plus the date / time rules; "final" is fine-tuned VietOCR + nested-box filter 0.5 + M1b v3 + date /
+time rules + SELLER / ADDRESS clean-up. Paired comparison over the same receipts (`scripts/compare_strict.py`, exact
+McNemar test and bootstrap over receipts): SELLER +15.0 points [+7.5, +22.4] (p = 0.0004), ADDRESS +11.3 [+5.7, +17.9]
+(p = 0.0005), date and time +17.0 [+9.4, +24.5] (p < 0.0001), all four fields +8.8 [+3.5, +14.0] (p = 0.002). Total
++7.1 [+1.0, +14.3] but McNemar p = 0.065, so the gain on the total is not shown to be significant.
+
+| Exactly right | Week 4 + date / time rules | Final configuration |
+| --- | --- | --- |
+| SELLER | 61 / 107 (57.0 %) | 77 / 107 (72.0 %) |
+| ADDRESS | 17 / 106 (16.0 %) | 29 / 106 (27.4 %) |
+| Date | 83 / 106 (78.3 %) | 89 / 106 (84.0 %) |
+| Time hh:mm | 43 / 85 (50.6 %) | 61 / 85 (71.8 %) |
+| Total | 64 / 98 (65.3 %) | 71 / 98 (72.4 %) |
+| **All four fields** | 11 / 114 (9.6 %) | 21 / 114 (18.4 %) [12.4, 26.5] |
+| Lenient macro F1 | 0.664 | 0.780 |
+| Fields wrong because of OCR text | 95 | 52 |
+
+VietOCR fine-tuning (validation, region crops): CER 13.03 % -> 6.49 %. The SELLER / ADDRESS clean-up rules were written
+after reading validation errors, so the validation numbers are optimistic; the test numbers above are not.
+
+**Speed (Kaggle T4, test receipts).** OCR 2.58 s per receipt (preprocessing 0.11 s, CRAFT 0.62 s, VietOCR 1.85 s); LayoutXLM
+stage 61.6 ms on GPU (p95 86.8 ms) and 966.5 ms on CPU. `scripts/verify_extractor.py` reproduces the stored Week-4
+predictions of the end-to-end path on all 115 validation receipts (0 differences, PASS).
+
+**Item lines (name, quantity, unit price, amount).** MC-OCR has no item labels, so the reader is rule based and scored by
+whether the item amounts add up to the annotated total. Test, 97 receipts with an annotated total: at least one item read
+in 80.4 %; item sum equals the annotated total in 46 / 97 (47.4 % [37.8, 57.3]); when the reader reports a receipt as
+`verified` (sum equals the total printed on the receipt) 42 of 44 are right (95.5 %). Item **names** cannot be scored
+without labels. Details and limits: [`docs/reports/items_plan.md`](docs/reports/items_plan.md).
 
 ## Results (Week 4, one seed)
 
