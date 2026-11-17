@@ -23,10 +23,14 @@ SELLER/ADDRESS.
 
 Khoảng tin cậy 95 % của hai cột còn chồng nhau; chưa có so sánh ghép cặp (việc P0.3).
 
-Độ trễ (`eval/latency_v3.json`, Kaggle GPU T4, test): OCR 2,58 s/hóa đơn (tiền xử lý 0,11, CRAFT 0,62, VietOCR 1,85);
-khâu LayoutXLM trung bình 4,59 s trên GPU (trung vị 3,95, p95 9,83, 60 hóa đơn) và 114 s trên CPU (15 hóa đơn).
-Con số LayoutXLM này **cao bất thường** so với 32–33 ms/hóa đơn ghi ở Tuần 4, nên chưa được đưa vào báo cáo trước khi
-tìm ra nguyên nhân (việc P0.2).
+Độ trễ (`eval/latency_v3_fixed.json`, Kaggle GPU T4, tập test, đo sau khi sửa lỗi cửa sổ): OCR 2,58 s mỗi hóa đơn
+(tiền xử lý 0,11, CRAFT 0,62, VietOCR 1,85); khâu LayoutXLM 61,6 ms trên GPU (trung vị 57,3, p95 86,8, 60 hóa đơn) và
+966,5 ms trên CPU (10 hóa đơn). Lần đo đầu cho 4586 ms trên GPU và 114 s trên CPU là **lỗi của chính code**: sau mỗi lần
+gọi processor, tokenizer nhanh của transformers 5 còn giữ chế độ đệm 512 nên mỗi từ bị đếm 512 sub-token và mỗi hóa đơn bị
+chia thành một cửa sổ cho mỗi từ (khoảng 127 lần forward thay vì 1). Lỗi chỉ xảy ra khi tạo cửa sổ từng hóa đơn một sau khi
+đã gọi processor (đường đi của app và `measure_latency.py`), không xảy ra khi chấm theo lô, nên điểm đã chấm không đổi. Đã sửa
+trong `word_token_counts` (commit `d33a3d6`, có test). Kiểm tra sau khi sửa: `verify_extractor.py` cho 115 / 115 hóa đơn
+validation giống hệt dự đoán Tuần 4, 0 khác biệt, `PASS`.
 
 ## 2. Đầu ra mong muốn
 
@@ -90,7 +94,7 @@ test là con số đưa vào báo cáo. Nhãn `verified` vẫn đáng tin trên 
 | # | Việc | Phụ thuộc | Xong khi | Trạng thái |
 | --- | --- | --- | --- | --- |
 | P0.1 | Tải về `test_results.zip` và `latency_v3.json` (cell 7 chỉ nén `eval/*test*`, nén riêng `latency_v3.json`) | — | Hai file nằm ngoài Kaggle | chờ |
-| P0.2 | Tìm nguyên nhân khâu LayoutXLM chậm (4,6 s GPU, 114 s CPU, so với 32–33 ms Tuần 4): đo riêng dựng cửa sổ, đọc ảnh + processor, forward | P0.1 | Bảng thời gian từng bước; giải thích hoặc sửa; đo lại | chờ (cell 9) |
+| P0.2 | Tìm nguyên nhân khâu LayoutXLM chậm bất thường | P0.1 | Tìm ra (tokenizer giữ chế độ đệm), sửa, đo lại: 61,6 ms GPU, 966,5 ms CPU; `verify_extractor` PASS | xong |
 | P0.3 | So sánh ghép cặp trên cùng 114 hóa đơn test giữa cấu hình cuối và M1b Tuần 4 | P0.1 | Khoảng tin cậy của hiệu số từng trường | chưa làm |
 | 1 | Module đọc mặt hàng + tự kiểm tra + unit test | — | `tests/test_line_items.py` | xong |
 | 2 | Chỉ số chấm bằng tổng chuẩn (`scripts/score_items.py`) | 1 | Bảng train, validation | xong |
