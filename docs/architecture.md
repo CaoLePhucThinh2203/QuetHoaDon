@@ -77,7 +77,9 @@ variant (M1a, head only) is kept as an ablation. See `docs/reports/project_plan.
   M1b v3 is trained on that OCR. After decoding, `src/extraction/datetime_rules.py` keeps the time next to the date and
   rebuilds split dates, and `src/extraction/field_cleanup.py` drops words repeated by overlapping boxes and labels or
   phone numbers glued to the end of SELLER / ADDRESS (no matching against stores seen in training).
-- **Item lines.** `src/extraction/line_items.py` groups words into lines, finds the item table (after the column header,
+- **Item lines.** `src/extraction/line_items.py` groups words into lines (along the text slope found by a projection
+  profile, so a slanted photo keeps its lines; numbers OCR read as two overlapping boxes, such as "399" + "9,000",
+  are joined first), finds the item table (after the column header,
   before the first total line), reads amounts and quantity so that quantity × unit price = amount, takes the name from
   the line or the line above, and subtracts discount lines. `check_items` marks a receipt `verified` when the item sum
   equals the total printed on it. `compact_result()` returns only the fields that were read.

@@ -7,11 +7,13 @@ OCR text of TRAIN receipts only, and are scored by an arithmetic check instead o
 * the sum of the amounts is compared with the total printed on the receipt (``summary_amounts``) and, when scoring, with
   the annotated ``TOTAL_COST`` (a receipt whose items add up to the right total almost surely has every item amount right).
 
-Steps: group words into lines by their y position -> find the item table (after the column header, before the first
+Steps: group words into lines by their y position along the text slope, joining numbers split into two overlapping
+boxes -> find the item table (after the column header, before the first
 "total" line) -> per line, read the amounts ("36 .500", "24 000", "8, 000", "110,000") and the quantity -> take the name
 from the line, or from the line above when the numbers sit on their own line (the common two-line layout).
 """
 import re
+import statistics
 import unicodedata
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -21,6 +23,11 @@ _AMOUNT = re.compile(
 _DECIMAL_TAIL = re.compile(_SEP + r"0{2}$")
 _BARCODE = re.compile(r"\b\d{6,14}\b")
 _SMALL_INT = re.compile(r"(?<![\d.,])(\d{1,3})(?![\d.,])")
+_NUMBER_TOKEN = re.compile(r"[\d.,]+")
+_MIN_SLOPE_WORDS = 10
+_SLOPE_STEP = 0.005                  # slopes tried: -0.2 .. 0.2 (about +-11 degrees)
+_SLOPE_STEPS = 40
+_SLOPE_GAIN = 1.10                   # a slope must stack the words 10 % better than horizontal to be used
 
 _HEADER_WORDS = ("ten hang", "ten mon", "mat hang", "hang hoa", "sl", "so luong", "don gia", "thanh tien", "t tien",
                  "dvt", "gia", "tt")
@@ -47,15 +54,73 @@ def _has(plain_text: str, words: Sequence[str]) -> bool:
 
 
 # ----------------------------------------------------------------------------- lines
+def _profile_score(boxes: Sequence[Sequence[float]], k: float, bin_h: float) -> float:
+    """Projection profile: sum of squared counts of the word centres binned along the direction of slope ``k``."""
+    counts: Dict[int, int] = {}
+    for b in boxes:
+        key = int(((b[1] + b[3]) / 2 - k * (b[0] + b[2]) / 2) // bin_h)
+        counts[key] = counts.get(key, 0) + 1
+    return float(sum(c * c for c in counts.values()))
+
+
+def text_slope(boxes: Sequence[Sequence[float]]) -> float:
+    """Slope dy/dx of the text lines, by the projection profile (the slope that stacks the words into the fewest, fullest
+    rows). Returns 0 unless a slope beats the horizontal clearly, so a straight receipt is grouped exactly as before."""
+    if len(boxes) < _MIN_SLOPE_WORDS:
+        return 0.0
+    bin_h = max(1.0, 0.5 * statistics.median(b[3] - b[1] for b in boxes))
+    flat = _profile_score(boxes, 0.0, bin_h)
+    best_k, best = 0.0, flat
+    for step in range(-_SLOPE_STEPS, _SLOPE_STEPS + 1):
+        k = step * _SLOPE_STEP
+        score = _profile_score(boxes, k, bin_h)
+        if score > best:
+            best_k, best = k, score
+    return best_k if best >= _SLOPE_GAIN * flat else 0.0
+
+
+def _is_number(text: str) -> bool:
+    return bool(_NUMBER_TOKEN.fullmatch(text)) and any(c.isdigit() for c in text)
+
+
+def merge_split_numbers(line: Sequence[Tuple[str, Sequence[float]]]) -> List[Tuple[str, Sequence[float]]]:
+    """Join a number that OCR read as two overlapping boxes repeating the shared character.
+
+    Examples from train OCR: ``"399"`` + ``"9,000"`` -> ``"399,000"``, ``"345,"`` + ``",000"`` -> ``"345,000"``. The two
+    boxes must overlap and the last character of the left box must be the first character of the right one (the
+    character both crops saw) and be a separator or be followed by one, so ``"10"`` + ``"000"`` (the amount "10 000"
+    written with a space) stays as it is. ``line`` is in reading order (left to right).
+    """
+    out: List[Tuple[str, Sequence[float]]] = []
+    for w, b in line:
+        if out:
+            pw, pb = out[-1]
+            shared = pw[-1] == w[0] and (w[0] in ".," or (len(w) > 1 and w[1] in ".,"))
+            if _is_number(pw) and _is_number(w) and b[0] < pb[2] <= b[2] and shared:
+                out[-1] = (pw + w[1:], [pb[0], min(pb[1], b[1]), b[2], max(pb[3], b[3])])
+                continue
+        out.append((w, b))
+    return out
+
+
 def group_lines(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> List[str]:
-    """Reading-order text lines: words whose vertical centre is within ~0.6 of a word height of the line's mean."""
-    items = sorted(zip(words, boxes), key=lambda wb: (wb[1][1] + wb[1][3]) / 2)
+    """Reading-order text lines: words whose vertical centre is within ~0.6 of a word height of the line's mean.
+
+    The vertical centre is measured along the text direction (``text_slope``), so a receipt photographed at a slant
+    keeps the words of one printed line together. Split numbers are joined (``merge_split_numbers``).
+    """
+    k = text_slope(boxes)
+
+    def level(b: Sequence[float]) -> float:
+        return (b[1] + b[3]) / 2 - k * (b[0] + b[2]) / 2
+
+    items = sorted(zip(words, boxes), key=lambda wb: level(wb[1]))
     lines: List[List[Tuple[str, Sequence[float]]]] = []
     cur: List[Tuple[str, Sequence[float]]] = []
     for w, b in items:
-        cy = (b[1] + b[3]) / 2
+        cy = level(b)
         if cur:
-            mean_y = sum((c[1][1] + c[1][3]) / 2 for c in cur) / len(cur)
+            mean_y = sum(level(c[1]) for c in cur) / len(cur)
             mean_h = sum(c[1][3] - c[1][1] for c in cur) / len(cur)
             if abs(cy - mean_y) < max(8.0, 0.6 * mean_h):
                 cur.append((w, b))
@@ -64,7 +129,7 @@ def group_lines(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> List[
         cur = [(w, b)]
     if cur:
         lines.append(cur)
-    return [" ".join(w for w, _ in sorted(line, key=lambda wb: wb[1][0])) for line in lines]
+    return [" ".join(w for w, _ in merge_split_numbers(sorted(line, key=lambda wb: wb[1][0]))) for line in lines]
 
 
 # ----------------------------------------------------------------------------- numbers
@@ -126,6 +191,15 @@ def _quantity(amounts: Sequence[Tuple[int, int, int, bool]], smalls: Sequence[in
 
 
 # ----------------------------------------------------------------------------- the table
+def _before_skip_phrase(line: str) -> Optional[str]:
+    """The text before a "giá đăng ký" / "giá niêm yết" / "giá gốc" phrase inside the line, or None without one."""
+    toks = line.split()
+    for i in range(1, len(toks)):
+        if any(plain(" ".join(toks[i:])).startswith(s) for s in _SKIP_START):
+            return " ".join(toks[:i])
+    return None
+
+
 def _header_index(lines_plain: Sequence[str]) -> Optional[int]:
     for i, p in enumerate(lines_plain):
         if sum(1 for w in _HEADER_WORDS if f" {w} " in f" {p} ") >= 2:
@@ -161,6 +235,10 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     for i in range(start, stop):
         line, p = lines[i], lp[i]
         if any(p.startswith(s) for s in _SKIP_START):
+            continue
+        head = _before_skip_phrase(line)
+        if head is not None:              # "Sữa Mộc Châu 180ml Giá đăng ký: 7,000": a slanted name joined the price line
+            pending = _name_of(head, parse_amounts(head)) or pending
             continue
         amounts = parse_amounts(line)
         if not amounts:

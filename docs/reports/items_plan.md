@@ -125,4 +125,51 @@ test là con số đưa vào báo cáo. Nhãn `verified` vẫn đáng tin trên 
 
 - Tên hàng chưa có số đo; chữ OCR của tên hàng có thể sai (VietOCR chỉ được tinh chỉnh trên dòng của 4 trường).
 - Luật chưa phủ hóa đơn giảm giá nhiều tầng, hàng cân theo kg (số lượng thập phân) và bảng hàng không có dòng tiêu đề.
-- Hóa đơn chụp nghiêng mạnh làm gộp dòng sai.
+- Hóa đơn chụp nghiêng làm gộp dòng sai: bản luật 2 (mục 7) sửa phần lớn; giấy bị cong (độ nghiêng khác nhau trên cùng
+  một tờ) vẫn có thể gộp sai.
+
+## 7. Bản luật 2 (18/11/2026): gom dòng theo độ nghiêng, gộp số bị tách
+
+**Vì sao.** Đọc chữ OCR của tập **train** thấy hai lỗi lặp lại ở bước ghép từ thành dòng:
+
+1. Ảnh chụp nghiêng: dòng được gom theo tọa độ y nằm ngang, nên đầu bên phải của một dòng in bị xếp vào dòng khác, tên
+   hàng bị cắt đôi và số tiền tách khỏi tên. Trên train, 62 hóa đơn có độ nghiêng ≥ 0,02 chỉ đúng tổng 37 % so với 59 % ở
+   ảnh thẳng.
+2. Số bị tách: CRAFT cắt một số thành hai hộp chồng nhau và VietOCR đọc ký tự ở chỗ chồng hai lần, ví dụ `399` + `9,000`
+   (của 399,000) hay `6,` + `,250` (của 6,250). Luật cũ đọc thành hai số khác nhau.
+
+**Thay đổi** (`src/extraction/line_items.py`, chỉ phần mặt hàng; 4 trường không đổi):
+
+- `text_slope`: tìm độ nghiêng bằng hình chiếu (thử -0,2 đến 0,2, bước 0,005; chọn độ nghiêng xếp các tâm chữ thành ít
+  hàng đầy nhất) và chỉ dùng khi tốt hơn nằm ngang ít nhất 10 %, nên ảnh thẳng được gom y như cũ. Cách lấy trung vị độ dốc
+  của từng cặp từ kề nhau đã thử trước và bị bỏ vì quá nhiễu (12–30 cặp mỗi hóa đơn; làm hỏng 3 hóa đơn train).
+- `merge_split_numbers`: gộp hai hộp số kề nhau khi hai hộp chồng nhau và ký tự cuối hộp trái trùng ký tự đầu hộp phải,
+  với điều kiện ký tự đó là dấu phân cách hoặc đứng ngay trước dấu phân cách. Điều kiện sau thêm vào sau khi bản đầu gộp
+  nhầm `10` + `000` (số "10 000" viết có dấu cách) thành 1000.
+- Dòng có cụm "giá đăng ký / giá niêm yết / giá gốc" ở giữa (tên hàng bị nối vào khi đã chỉnh nghiêng): phần trước cụm
+  được giữ làm tên, dòng bị bỏ như trước.
+
+**Cách chọn.** Luật viết và chỉnh chỉ trên **train**; validation chấm một lần sau khi đã chốt; **test không chấm lại**
+(con số test 47,4 % ở mục 3 vẫn là con số của bản luật 1, bản đã đóng băng cùng cấu hình cuối).
+
+| Chỉ số (`tok_ft_n05`) | Train, bản 1 | Train, bản 2 | Validation, bản 1 | Validation, bản 2 |
+| --- | --- | --- | --- | --- |
+| Tổng các món = tổng chuẩn | 444 / 781 (56,9 %) | **486 / 781 (62,2 %)** [58,8; 65,6] | 59 / 94 (62,8 %) | **64 / 94 (68,1 %)** [58,1; 76,6] |
+| Hóa đơn sửa được / bị làm hỏng | | 43 / 1 (McNemar p < 0,0001) | | 5 / 0 (p = 0,0625) |
+| `verified` | 401 (51,3 %) | 477 (61,1 %) | 52 (55,3 %) | 59 (62,8 %) |
+| Trong số `verified`, bằng tổng chuẩn | 97,0 % | 97,7 % | 98,1 % | 98,3 % |
+| Dòng thỏa số lượng × đơn giá = thành tiền | 91,5 % | 91,9 % | 89,9 % | 90,9 % |
+
+Từng phần trên train (sửa / làm hỏng so với bản 1): chỉ chỉnh nghiêng 6 / 0; chỉ gộp số 35 / 0; cả hai 43 / 1. Hóa đơn
+bị làm hỏng (`...014uqaoc`) có giấy cong: sau khi chỉnh nghiêng, thành tiền 52,000 lệch xuống dòng riêng, mất tên. Trên
+validation cả 5 hóa đơn được sửa là nhờ gộp số; chỉnh nghiêng không đổi kết quả hóa đơn nào ở đây.
+
+Đọc kết quả: cải thiện trên train rõ ràng; trên validation cùng chiều (5 sửa, 0 hỏng) nhưng 94 hóa đơn chưa đủ để có ý
+nghĩa thống kê. Tên hàng vẫn không đo được; chỉnh nghiêng giữ tên đủ hơn ở các ví dụ đã xem, đó chỉ là minh họa.
+
+**Ảnh hưởng.** Cell 7 của `notebooks/07_final_evaluation_kaggle.ipynb` kiểm tra số test của bản 1 (46 / 97) nên sẽ in LỆCH
+khi chạy với code mới; số đó và báo cáo cuối vẫn đúng cho cấu hình đã đóng băng. Web demo và `extract_receipt.py --items`
+dùng bản 2.
+
+File nguồn: `eval_items_v2/items_train_v2.json`, `eval_items_v2/items_validation_v2.json` (chạy
+`scripts/score_items.py --token-dir phase1_eval/tok_ft_n05`, Python thuần trên máy cá nhân).
