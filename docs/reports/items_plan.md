@@ -233,3 +233,32 @@ không gặp ở VietOCR gốc); 31 không đọc được món nào. Hai nhóm 
 không đọc được để app báo cho người dùng thay vì đưa ra số tiền bịa.
 
 File nguồn: `eval_items_v3/items_train_v3.json`, `eval_items_v3/items_validation_v3.json` (cùng lệnh như bản 2).
+
+## 9. Tổng tiền đối chiếu với tổng các món (19/11/2026)
+
+**Vì sao.** Trên train, khi phần mặt hàng (bản 3) báo `verified`, tổng các món bằng tổng chuẩn ở **530 / 547 hóa đơn
+(96,9 %)**; trong khi model chỉ đọc đúng tổng tiền ở 76,5 % hóa đơn validation. Trong 17 ca `verified` sai trên train, 3 ca
+là giảm giá trên tổng đơn và tổng chuẩn vẫn là một số in trên dòng "tổng".
+
+**Luật** (`src/extraction/total_check.py`, không có tham số để chỉnh; suy ra từ số liệu train ở trên):
+
+- Các món `verified` **và** số tổng của model **không** in trên dòng "tổng" nào (hoặc model không ra số) → dùng tổng các món.
+- Số của model có in trên một dòng "tổng" → giữ nguyên (giữ được tổng sau giảm giá trên tổng đơn).
+
+Bật bằng `--total-from-items` (`decode_from_probs.py`, `extract_receipt.py`, `demo_app.py`) hoặc
+`ReceiptExtractor(total_from_items=True)`. **Mặc định tắt**: cấu hình đã đóng băng và mọi số trong báo cáo cuối không đổi.
+
+**Kết quả, validation, chấm một lần** (M1b v3 + luật ngày giờ + làm sạch, xác suất đã lưu; **test không chấm lại**):
+
+| | Cấu hình cuối | + tổng từ các món |
+| --- | --- | --- |
+| Tổng tiền đúng | 75 / 98 (76,5 %) | **80 / 98 (81,6 %)** [72,8; 88,1] |
+| Không ra tổng tiền | 3 | 1 |
+| Đúng cả 4 trường | 20 / 115 | 21 / 115 |
+
+Đổi 8 hóa đơn (6 có tổng chuẩn): sửa đúng 5, làm hỏng 0 (McNemar p = 0,0625); 1 hóa đơn trước không ra tổng nay ra một
+số sai (105 000 so với 405 000): vẫn sai, nhưng app sẽ hiện một số sai thay vì để trống. Các ca được sửa: model chọn tiền
+khách đưa (150 000 → 148 000), chọn một món (3 000 → 322 800), hoặc không ra số.
+
+File nguồn: `eval_total_v1/decoded_v3_val_final.json`, `eval_total_v1/decoded_v3_val_total_items.json`
+(`decode_from_probs.py --probs eval/m1b_v3_val_probs.npz --datetime --cleanup [--total-from-items]`).

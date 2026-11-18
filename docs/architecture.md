@@ -84,6 +84,8 @@ variant (M1a, head only) is kept as an ablation. See `docs/reports/project_plan.
   so that quantity × unit price = amount, takes the name from the line or the line above, reads weighed goods
   ("40 000/KG X 0,322 KG", quantity 0.322) with the amount from the next line, and subtracts discount lines. `check_items` marks a receipt `verified` when the item sum
   equals the total printed on it. `compact_result()` returns only the fields that were read.
+- **Total from items (optional).** `src/extraction/total_check.py`: with `total_from_items=True`, a verified item sum
+  replaces the predicted total when that total is not printed on any "total" line (or is missing). Off by default.
 
 ## 6. Limitations
 

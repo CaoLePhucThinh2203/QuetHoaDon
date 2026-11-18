@@ -216,6 +216,10 @@ python scripts/extract_receipt.py --checkpoint m1b_v3_checkpoint/best --ocr-weig
     --nested-threshold 0.5 --postprocess --items --compact --image path/to/receipt.jpg
 ```
 
+Add `--total-from-items` (also on `demo_app.py`) to replace the total with the item sum when the items add up to a
+printed total line and the predicted total is not on one (validation: total exactly right 76.5 % -> 81.6 %; added after
+the frozen configuration, so it is off by default; see `docs/reports/items_plan.md` section 9).
+
 Web demo of the final configuration (same model, upload a photo in the browser). On Kaggle, run
 `notebooks/08_web_demo_kaggle.ipynb` interactively (Run All, not Save & Run All) and open the printed
 `https://….gradio.live` link; elsewhere, with a GPU and `pip install gradio`:

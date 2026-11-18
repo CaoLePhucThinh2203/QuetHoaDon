@@ -135,12 +135,15 @@ def main() -> None:
     ap.add_argument("--examples", nargs="*", default=[], help="example receipt images shown under the upload box")
     ap.add_argument("--share", action="store_true", help="public gradio.live link (Kaggle / Colab)")
     ap.add_argument("--port", type=int, default=7860)
+    ap.add_argument("--total-from-items", action="store_true",
+                    help="use the verified item sum when the predicted total is not printed on a total line")
     args = ap.parse_args()
 
     print("[demo] loading the final configuration ...", flush=True)
     extractor = ReceiptExtractor.from_checkpoint(args.checkpoint, args.config_dir, args.device, with_ocr=True,
                                                  postprocess=True, ocr_weights=args.ocr_weights, items=True,
-                                                 nested_threshold=args.nested_threshold)
+                                                 nested_threshold=args.nested_threshold,
+                                                 total_from_items=args.total_from_items)
     examples = [e for e in args.examples if os.path.exists(e)]
     demo = build_ui(make_scan(extractor), examples)
     demo.queue(max_size=16).launch(share=args.share, server_name="0.0.0.0", server_port=args.port)

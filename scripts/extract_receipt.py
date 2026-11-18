@@ -41,6 +41,8 @@ def parse_args() -> argparse.Namespace:
                     help="nested-box filter of CRAFT (the final configuration uses 0.5; configs/model.yaml has 0.8)")
     ap.add_argument("--items", action="store_true",
                     help="also read the item lines (name, quantity, unit price, amount) with the rule based reader")
+    ap.add_argument("--total-from-items", action="store_true",
+                    help="use the verified item sum when the predicted total is not printed on a total line")
     ap.add_argument("--compact", action="store_true",
                     help="short output for an app: only fields that were read, time split from the date, items if any")
     ap.add_argument("--show-words", action="store_true", help="Also print every word with its box and predicted tag")
@@ -63,7 +65,8 @@ def main() -> None:
     print(f"[*] Loading models from {checkpoint} (device={args.device})", file=sys.stderr)
     extractor = ReceiptExtractor.from_checkpoint(checkpoint, args.config_dir, args.device, with_ocr=not use_json,
                                                  postprocess=args.postprocess, ocr_weights=args.ocr_weights,
-                                                 items=args.items, nested_threshold=args.nested_threshold)
+                                                 items=args.items, nested_threshold=args.nested_threshold,
+                                                 total_from_items=args.total_from_items)
     if use_json:
         with open(args.ocr_json, "r", encoding="utf-8") as f:
             result = extractor.extract_from_ocr(json.load(f), args.preprocessed_image)

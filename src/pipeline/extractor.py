@@ -10,6 +10,8 @@ the date, then the keyword / date rules for empty fields), so a demo result is p
 ``postprocess=True`` adds the Week-5 steps scored on validation: the time next to the date
 (``src/extraction/datetime_rules.py``) and the SELLER / ADDRESS clean-up (``src/extraction/field_cleanup.py``).
 It is off by default so ``verify_extractor.py`` still reproduces the Week-4 predictions.
+``total_from_items=True`` replaces the total with the verified item sum when the model's total is not printed on a
+"total" line (``src/extraction/total_check.py``); it came after the frozen configuration and is off by default.
 
 The class is split so that everything except the neural network is plain Python and unit-tested: the network is a
 function ``probs_fn(record, image_dir) -> array [n_words, 9]`` that ``from_checkpoint`` builds with torch.
@@ -28,6 +30,7 @@ from src.extraction.datetime_rules import improve_timestamps
 from src.extraction.field_cleanup import clean_predictions
 from src.extraction.line_items import check_items, extract_items
 from src.extraction.rules import fill_missing
+from src.extraction.total_check import choose_total, format_amount
 from src.extraction.schema import ANNOTATED_FIELDS
 from src.preprocessing.token_dataset import ID2LABEL, items_to_words
 from src.training.field_eval import decode_predictions_soft, normalize_date
@@ -117,11 +120,12 @@ class ReceiptExtractor:
     """OCR pipeline + token classifier. ``ocr_pipeline`` may be ``None`` when only ``extract_from_ocr`` is used."""
 
     def __init__(self, probs_fn: ProbsFn, ocr_pipeline: Any = None, postprocess: bool = False,
-                 items: bool = False) -> None:
+                 items: bool = False, total_from_items: bool = False) -> None:
         self.probs_fn = probs_fn
         self.ocr_pipeline = ocr_pipeline
         self.postprocess = postprocess
         self.items = items
+        self.total_from_items = total_from_items      # off by default: the frozen configuration did not use it
 
     def _run(self, record: Dict[str, Any], image_dir: str, boxes: List[List[float]], bbox_unit: str,
              timing_in: Optional[Dict[str, float]], skew_angle: Any) -> Dict[str, Any]:
@@ -137,11 +141,18 @@ class ReceiptExtractor:
         timing["layoutxlm"] = round(layout_sec, 3)
         timing["total"] = round(sum(v for k, v in timing.items() if k not in ("total", "features")), 3)
         read_items = None
-        if self.items and record["words"]:        # rule based, on the normalised boxes (the scored setting)
+        if (self.items or self.total_from_items) and record["words"]:   # rule based, on the normalised boxes
             read_items = extract_items(record["words"], record["boxes"])
             check = check_items(read_items["items"], read_items["summary_amounts"])
+            if self.total_from_items:
+                new_total = choose_total(fields["TOTAL_COST"].get("amount_vnd"), check)
+                if new_total is not None:
+                    fields["TOTAL_COST"] = {"text": format_amount(new_total), "status": "found", "source": "items",
+                                            "amount_vnd": new_total}
             check["predicted_total"] = fields["TOTAL_COST"].get("amount_vnd")
             read_items["check"] = check
+            if not self.items:
+                read_items = None
         result = {
             "file_id": record["img_id"],
             "fields": fields,
@@ -191,7 +202,8 @@ class ReceiptExtractor:
     def from_checkpoint(cls, checkpoint: str, config_dir: str = "configs", device: str = "auto",
                         with_ocr: bool = True, postprocess: bool = False,
                         ocr_weights: Optional[str] = None, items: bool = False,
-                        nested_threshold: Optional[float] = None) -> "ReceiptExtractor":
+                        nested_threshold: Optional[float] = None,
+                        total_from_items: bool = False) -> "ReceiptExtractor":
         """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR.
 
         ``ocr_weights`` is the fine-tuned VietOCR state dict; the checkpoint must have been trained on the OCR of the
@@ -222,7 +234,7 @@ class ReceiptExtractor:
         if nested_threshold is not None:        # the final configuration was scored with 0.5 (config default 0.8)
             cfg["detection"] = dict(cfg["detection"], nested_threshold=nested_threshold)
         pipeline = build_ocr_pipeline(cfg, device) if with_ocr else None
-        return cls(probs_fn, pipeline, postprocess, items)
+        return cls(probs_fn, pipeline, postprocess, items, total_from_items)
 
 
 def build_ocr_pipeline(model_cfg: Dict[str, Any], device: str):
