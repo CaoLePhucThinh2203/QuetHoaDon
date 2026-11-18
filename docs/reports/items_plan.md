@@ -124,7 +124,9 @@ test là con số đưa vào báo cáo. Nhãn `verified` vẫn đáng tin trên 
 ## 6. Hạn chế đã biết
 
 - Tên hàng chưa có số đo; chữ OCR của tên hàng có thể sai (VietOCR chỉ được tinh chỉnh trên dòng của 4 trường).
-- Luật chưa phủ hóa đơn giảm giá nhiều tầng, hàng cân theo kg (số lượng thập phân) và bảng hàng không có dòng tiêu đề.
+- Luật chưa phủ hóa đơn giảm giá nhiều tầng. Hàng cân theo kg và bảng có dòng tiêu đề bị OCR đọc sai: bản luật 3 (mục 8).
+- Hóa đơn có giảm giá trên tổng đơn ("Tổng 78 000 → chiết khấu → 70 200"): các món có thể đọc đúng nhưng vẫn bị tính
+  sai, vì tổng chuẩn là số sau giảm.
 - Hóa đơn chụp nghiêng làm gộp dòng sai: bản luật 2 (mục 7) sửa phần lớn; giấy bị cong (độ nghiêng khác nhau trên cùng
   một tờ) vẫn có thể gộp sai.
 
@@ -173,3 +175,61 @@ dùng bản 2.
 
 File nguồn: `eval_items_v2/items_train_v2.json`, `eval_items_v2/items_validation_v2.json` (chạy
 `scripts/score_items.py --token-dir phase1_eval/tok_ft_n05`, Python thuần trên máy cá nhân).
+
+## 8. Bản luật 3 (19/11/2026): hàng cân, tiêu đề bị đọc sai, dòng tổng giả
+
+Ưu tiên của nhóm từ đây: **tổng tiền, tên hàng, đơn giá và số lượng**; người bán, địa chỉ, ngày giờ không cần cải thiện thêm.
+
+**Vì sao.** Phân loại 295 hóa đơn train còn sai sau bản 2: không đọc được món nào 112 (phần lớn là phiếu thanh toán thẻ,
+biên nhận nạp tiền, báo cáo cuối ca: không có mặt hàng nên đọc ra rỗng là đúng); có dòng sai phép tính 89; thiếu món 54;
+thừa dòng hoặc giảm giá trên tổng đơn 40. Đọc các hóa đơn train trong từng nhóm thấy bốn lỗi của luật:
+
+1. **Hàng cân theo kg** (VinMart, Co.op): `Rau ngót 40 000/KG X 0,322 KG` rồi dòng mã vạch `12 .880 12.880`. Luật cũ đọc cân
+   nặng "0,322" thành số tiền 322 đồng và bỏ mất dòng tiền thật vì không còn tên.
+2. **Dòng tiêu đề bị OCR đọc sai** ("S1. Đơn giú Thành tiền") chỉ khớp một từ khóa, luật cần hai.
+3. **Dòng "tổng" giả ở đầu hóa đơn**: VietOCR tinh chỉnh in "Tổng thanh toán" ở vùng không đọc được, luật tưởng bảng đã kết
+   thúc ngay dòng đầu. "Tổng số lượng hàng" (Co.op) cũng bị nhận làm tiêu đề.
+4. **"giò heo"** bỏ dấu thành "gio", trùng với "giờ" (dòng ngày giờ), nên tên hàng bị bỏ.
+
+**Thay đổi** (`src/extraction/line_items.py`):
+
+- `_per_kg`: dòng có "/KG" là dòng tên; giữ đơn giá theo kg và cân nặng (cả khi cân nặng nằm một dòng riêng), lấy thành
+  tiền ở dòng sau. Khi đơn giá × cân nặng = thành tiền (sai số ≤ 0,5 % hoặc 2 đồng), món có số lượng thập phân (0.322) và
+  đơn giá theo kg.
+- Tiêu đề: thêm một cụm mạnh ("thành tiền", "đơn giá", "tên hàng", "mặt hàng", "số lượng") trên dòng không có số tiền;
+  dòng có từ "tổng" không bao giờ là tiêu đề.
+- Dòng "tổng" mà trước nó không có dòng số tiền nào thì không phải cuối bảng; tìm dòng tổng kế tiếp. Không có dòng tổng nào
+  sau đó thì giữ dòng đầu như cũ (phiếu không có bảng hàng).
+- "gio" không còn chặn tên hàng (vẫn dùng để tìm đầu bảng).
+
+**Cách chọn.** Như bản 2: viết và chỉnh trên **train**, validation chấm một lần sau khi chốt, **test không chấm lại**.
+
+| Tổng các món = tổng chuẩn | Bản 1 (`main`) | Bản 2 | **Bản 3** |
+| --- | --- | --- | --- |
+| Train (781) | 444 (56,9 %) | 486 (62,2 %) | **554 (70,9 %)** [67,7; 74,0] |
+| Validation (94) | 59 (62,8 %) | 64 (68,1 %) | **69 (73,4 %)** [63,7; 81,3] |
+
+| So sánh ghép cặp | Sửa được / làm hỏng | McNemar p |
+| --- | --- | --- |
+| Train, bản 2 → 3 | 68 / 0 | < 0,0001 |
+| Validation, bản 2 → 3 | 5 / 0 | 0,0625 |
+| Validation, bản 1 → 3 | 10 / 0 | 0,002 |
+
+| Chỉ số khác (validation) | Bản 1 | Bản 3 |
+| --- | --- | --- |
+| Đọc được ít nhất một món | 85,1 % | 90,4 % |
+| `verified` | 55,3 % | 68,1 % |
+| Trong số `verified`, bằng tổng chuẩn | 98,1 % | 98,4 % (63 / 64) |
+| Dòng thỏa số lượng × đơn giá = thành tiền | 89,9 % | 91,2 % |
+
+Trên train, độ chính xác của `verified` giữ ở 97,1 % (531 / 547; bản 1: 97,0 %). Một bản trung gian tăng điểm nhưng làm
+"tìm thấy dòng tổng" trên validation giảm từ 97,9 % xuống 89,4 % (bỏ qua dòng tổng của phiếu không có bảng hàng); đã sửa
+bằng cách giữ dòng tổng đầu khi không có dòng nào sau nó, trước khi chốt.
+
+**Còn lại trên train (227 hóa đơn).** Thiếu món 66; dòng sai phép tính 55 (phần lớn chữ số OCR đọc sai, như
+`11452 .500 .500`); thừa hoặc giảm giá trên tổng đơn 43; 32 ảnh mà VietOCR tinh chỉnh "bịa chữ" (cụm "Tổng thanh toán",
+"104 Trần Phú" lặp nhiều lần ở ảnh mà VietOCR gốc cũng không đọc được: 53 / 922 train, 5 / 115 validation, 7 / 116 test,
+không gặp ở VietOCR gốc); 31 không đọc được món nào. Hai nhóm đầu cần OCR tốt hơn; nhóm ảnh bịa chữ cần một bước nhận ra ảnh
+không đọc được để app báo cho người dùng thay vì đưa ra số tiền bịa.
+
+File nguồn: `eval_items_v3/items_train_v3.json`, `eval_items_v3/items_validation_v3.json` (cùng lệnh như bản 2).

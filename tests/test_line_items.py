@@ -132,6 +132,33 @@ class ExtractItemsTest(unittest.TestCase):
         self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"]) for i in items],
                          [("Kẹo Alpenliebe", 10, 8300, 83000)])
 
+    def test_weighed_goods_take_the_amount_from_the_next_line(self):
+        # train ...013njyzj / ...013iijxa: the weight "0,322" is not an amount of 322; the amount is on the barcode line
+        words, boxes = lay(["Mặt hàng Đơn giá SL T. Tiền", "Rau ngót 40 000/KG X 0,322 KG", "2600088003221 12 .880 12.880",
+                            "Bắp cải trái tim 32 000/KG X", "0, 606 KG", "2605147006069 19 .392 19 .392",
+                            "TỔNG TIỀN PHẢI T. TOÁN 32.272"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"], i["line_ok"]) for i in res["items"]],
+                         [("Rau ngót", 0.322, 40000, 12880, True), ("Bắp cải trái tim", 0.606, 32000, 19392, True)])
+        self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
+
+    def test_garbled_header_and_invented_total_at_the_top(self):
+        # train ...014wbfza: "SL" and "Đơn giá" misread, and the fine-tuned OCR wrote "Tổng thanh toán" above the store name
+        words, boxes = lay(["Tổng thanh toán", "CỬA HÀNG NĂM OÁNH", "HÓA ĐƠN BÁN HÀNG", "S1. Đơn giú Thành tiền",
+                            "Pin điều khiển panasonic", "6, ,000 6 000", "Xúc xích heo 25gx10", "23 ,000 23 ,000",
+                            "Cộng tiền hàng 29 ,000"])
+        res = extract_items(words, boxes)
+        self.assertTrue(res["header_found"])
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]],
+                         [("Pin điều khiển panasonic", 6000), ("Xúc xích heo 25gx10", 23000)])
+
+    def test_gio_heo_is_a_name_and_total_quantity_is_not_a_header(self):
+        # train ...013hopjk: "giò" loses its accent and reads like "giờ" (time); ...013eknsk: "Tổng số lượng hàng"
+        words, boxes = lay(["Măt hàng ơn giá SL T. Tiền", "CP Bắp giò heo không xương 300g",
+                            "8935058962081 51 .500 51 .500", "TỔNG TIỀN PHẢI T. TOÁN 51 .500", "Tổng số lượng hàng: 1"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]], [("CP Bắp giò heo không xương 300g", 51500)])
+
     def test_discount_line_is_subtracted(self):
         words, boxes = lay(["Tên hàng SL Thành tiền", "Trà túi lọc Lipton", "38 .000 38 .000", "KM -3 .300", "Tổng cộng 34 .700"])
         res = extract_items(words, boxes)

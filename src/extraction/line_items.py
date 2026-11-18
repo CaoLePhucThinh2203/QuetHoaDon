@@ -24,6 +24,9 @@ _DECIMAL_TAIL = re.compile(_SEP + r"0{2}$")
 _BARCODE = re.compile(r"\b\d{6,14}\b")
 _SMALL_INT = re.compile(r"(?<![\d.,])(\d{1,3})(?![\d.,])")
 _NUMBER_TOKEN = re.compile(r"[\d.,]+")
+_PER_KG = re.compile(r"/\s*kg\b", re.IGNORECASE)
+_WEIGHT = re.compile(r"(\d{1,3})\s?[.,]\s?(\d{1,3})\s*kg\b", re.IGNORECASE)
+_WEIGHT_ONLY = re.compile(r"\s*[xX]?\s*\d{1,3}\s?[.,]\s?\d{1,3}\s*kg\s*", re.IGNORECASE)
 _MIN_SLOPE_WORDS = 10
 _SLOPE_STEP = 0.005                  # slopes tried: -0.2 .. 0.2 (about +-11 degrees)
 _SLOPE_STEPS = 40
@@ -33,6 +36,8 @@ _HEADER_WORDS = ("ten hang", "ten mon", "mat hang", "hang hoa", "sl", "so luong"
                  "dvt", "gia", "tt")
 _END_WORDS = ("tong", "cong", "thanh toan", "phai tra", "phai t toan")
 _TOP_WORDS = ("hoa don", "ngay", "gio", "thu ngan", "quay", "so hd", "phieu", "nvbh", "ban hang")
+_NAME_STOP = tuple(w for w in _TOP_WORDS if w != "gio")     # "giò heo" (pork) loses its accent and reads "gio"
+_STRONG_HEADER = ("thanh tien", "don gia", "ten hang", "mat hang", "so luong")
 _SKIP_START = ("gia dang ky", "gia niem yet", "gia goc")
 _DISCOUNT_START = ("km", "khuyen mai", "giam", "chiet khau", "ck")
 _NOT_A_NAME = ("ten mon", "ten hang", "mat hang", "thanh tien", "so luong", "don gia", "tong", "cong")
@@ -200,9 +205,31 @@ def _before_skip_phrase(line: str) -> Optional[str]:
     return None
 
 
-def _header_index(lines_plain: Sequence[str]) -> Optional[int]:
+def _weight(text: str) -> Optional[float]:
+    m = _WEIGHT.search(text)
+    return float(f"{m.group(1)}.{m.group(2)}") if m else None
+
+
+def _per_kg(line: str) -> Optional[Tuple[str, Optional[int], Optional[float]]]:
+    """``(name, price per kg, weight)`` of a weighed-goods line such as "Bơ đặc biệt 52. 700/KG x 0,432 KG"."""
+    m = _PER_KG.search(line)
+    if m is None:
+        return None
+    before = line[:m.start()]
+    amounts = parse_amounts(before)
+    return _name_of(before, amounts), (amounts[-1][0] if amounts else None), _weight(line[m.end():])
+
+
+def _header_index(lines: Sequence[str], lines_plain: Sequence[str]) -> Optional[int]:
+    """First column-header line: two header words, or one strong header phrase on a line without amounts
+    (OCR often garbles the other words: "S1. Đơn giú Thành tiền"). A "total" line is never the header
+    ("Tổng số lượng hàng")."""
     for i, p in enumerate(lines_plain):
+        if _has(p, _END_WORDS):
+            continue
         if sum(1 for w in _HEADER_WORDS if f" {w} " in f" {p} ") >= 2:
+            return i
+        if _has(p, _STRONG_HEADER) and not parse_amounts(lines[i]):
             return i
     return None
 
@@ -222,19 +249,35 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     """
     lines = group_lines(words, boxes)
     lp = [plain(x) for x in lines]
-    header = _header_index(lp)
+    header = _header_index(lines, lp)
     start = header + 1 if header is not None else 0
     end = _end_index(lp, start)
+    first = (start, end)
+    while end is not None and not any(parse_amounts(lines[j]) for j in range(start, end)):
+        # a "total" line with no amount line before it is not the end of the table (a heading, or a phrase the
+        # fine-tuned OCR invents at the top of an unreadable crop): look for the end after it
+        start, end = end + 1, _end_index(lp, end + 1)
+    if end is None:                       # no later total line: keep the first one (a slip without an item table)
+        start, end = first
     if header is None and end is not None:
-        top = [i for i in range(end) if _has(lp[i], _TOP_WORDS)]
-        start = (max(top) + 1) if top else 0
+        top = [i for i in range(start, end) if _has(lp[i], _TOP_WORDS)]
+        start = (max(top) + 1) if top else start
     stop = end if end is not None else len(lines)
 
     items: List[Dict[str, Any]] = []
     pending = ""
+    pending_kg: Optional[Tuple[Optional[int], Optional[float]]] = None
     for i in range(start, stop):
         line, p = lines[i], lp[i]
         if any(p.startswith(s) for s in _SKIP_START):
+            continue
+        kg = _per_kg(line)
+        if kg is not None:                # "Rau muống 21 000/KG X 0, 464 KG": the amount is on the next line
+            name, price, weight = kg
+            pending, pending_kg = name or pending, (price, weight)
+            continue
+        if pending_kg is not None and _WEIGHT_ONLY.fullmatch(line):          # "0, 606 KG" on its own line
+            pending_kg = (pending_kg[0], _weight(line))
             continue
         head = _before_skip_phrase(line)
         if head is not None:              # "Sữa Mộc Châu 180ml Giá đăng ký: 7,000": a slanted name joined the price line
@@ -242,7 +285,7 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
             continue
         amounts = parse_amounts(line)
         if not amounts:
-            if sum(c.isalpha() for c in line) >= 3 and not _has(p, _TOP_WORDS):
+            if sum(c.isalpha() for c in line) >= 3 and not _has(p, _NAME_STOP):
                 pending = _name_of(line, []) or pending
             continue
         parsed = _quantity(amounts, _small_ints(line, amounts))
@@ -258,10 +301,14 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
         if discount:
             parsed.update(amount=-parsed["amount"], quantity=1, unit_price=-parsed["amount"], line_ok=True)
         elif not name:
-            pending = ""
+            pending, pending_kg = "", None
             continue
+        if pending_kg is not None and not discount:
+            price, weight = pending_kg
+            if price and weight and abs(price * weight - parsed["amount"]) <= max(2.0, 0.005 * parsed["amount"]):
+                parsed.update(quantity=weight, unit_price=price, line_ok=True)
         items.append({"name": name, **parsed, "discount": bool(discount)})
-        pending = ""
+        pending, pending_kg = "", None
 
     summary: List[int] = []
     if end is not None:
