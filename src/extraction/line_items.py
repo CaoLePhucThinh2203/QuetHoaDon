@@ -24,6 +24,7 @@ _DECIMAL_TAIL = re.compile(_SEP + r"0{2}$")
 _BARCODE = re.compile(r"\b\d{6,14}\b")
 _SMALL_INT = re.compile(r"(?<![\d.,])(\d{1,3})(?![\d.,])")
 _NUMBER_TOKEN = re.compile(r"[\d.,]+")
+_DECIMAL_QTY = re.compile(r"(?<![\d.,])(\d{1,2})\s?[.,]\s?(\d{1,3})(?!\d)")
 _PER_KG = re.compile(r"/\s*kg\b", re.IGNORECASE)
 _WEIGHT = re.compile(r"(\d{1,3})\s?[.,]\s?(\d{1,3})\s*kg\b", re.IGNORECASE)
 _WEIGHT_ONLY = re.compile(r"\s*[xX]?\s*\d{1,3}\s?[.,]\s?\d{1,3}\s*kg\s*", re.IGNORECASE)
@@ -174,6 +175,29 @@ def _name_of(line: str, amounts: Sequence[Tuple[int, int, int, bool]]) -> str:
     return name if sum(c.isalpha() for c in name) >= 3 else ""
 
 
+def _decimal_quantity(line: str, amounts: Sequence[Tuple[int, int, int, bool]]
+                      ) -> Optional[Tuple[Dict[str, Any], List[Tuple[int, int, int, bool]]]]:
+    """A weighed item without "/KG": "0.39 Kg 25,000 9,750", "0, 52 290,000 150,800", "1.214 20,500 24,887".
+
+    A small decimal (0 < q < 100) is the quantity only when ``q * unit price == amount`` with the other amounts of the
+    line; returns the parsed line and the amounts left once the decimal is removed (it may have been read as an amount,
+    "1.214" -> 1214). ``None`` when no decimal passes the check.
+    """
+    for m in _DECIMAL_QTY.finditer(line):
+        q = float(f"{m.group(1)}.{m.group(2)}")
+        if not 0 < q < 100 or q == int(q):
+            continue
+        rest = [a for a in amounts if a[2] <= m.start() or a[1] >= m.end()]
+        values = [a[0] for a in rest]
+        if len(values) < 2:
+            continue
+        total = values[-1]
+        for unit in reversed(values[:-1]):
+            if unit and abs(q * unit - total) <= max(2.0, 0.005 * total):
+                return {"quantity": q, "unit_price": unit, "amount": total, "line_ok": True}, rest
+    return None
+
+
 def _quantity(amounts: Sequence[Tuple[int, int, int, bool]], smalls: Sequence[int]) -> Optional[Dict[str, Any]]:
     """Quantity, unit price and amount of one item line, chosen so that ``quantity * unit price == amount``."""
     values = [a[0] for a in amounts]
@@ -288,7 +312,13 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
             if sum(c.isalpha() for c in line) >= 3 and not _has(p, _NAME_STOP):
                 pending = _name_of(line, []) or pending
             continue
-        parsed = _quantity(amounts, _small_ints(line, amounts))
+        # a decimal quantity is tried first: "0.146 155,000 22,630" also passes as 155 x 146 = 22,630, because a weight
+        # times a price per kg always has the digits of (price / 1000) x (weight x 1000)
+        weighed = _decimal_quantity(line, amounts)
+        if weighed is not None:
+            parsed, amounts = weighed
+        else:
+            parsed = _quantity(amounts, _small_ints(line, amounts))
         name = _name_of(line, amounts)
         if plain(name).startswith("gia ban"):          # "Giá bán: 12 HOP 6,500 78,000" sits under the product name
             name = ""

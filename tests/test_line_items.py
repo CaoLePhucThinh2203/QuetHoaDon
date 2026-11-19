@@ -142,6 +142,17 @@ class ExtractItemsTest(unittest.TestCase):
                          [("Rau ngót", 0.322, 40000, 12880, True), ("Bắp cải trái tim", 0.606, 32000, 19392, True)])
         self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
 
+    def test_decimal_quantity_without_per_kg(self):
+        # train ...013iulwh ("0.39 Kg 25,000 9,750") and ...014xyqra ("0.146 155,000 22,630" also passes as
+        # 155 x 146); a weight written in the quantity column with an OCR space ("0, 52") reads the same way
+        words, boxes = lay(["Tên hàng SL Đơn giá Thành tiền", "Đậu cô ve 0.39 Kg 25,000 9,750",
+                            "NẠC HEO XAY 0.146 155,000 22,630", "Thịt bò thăn 0, 52 290,000 150,800",
+                            "Sữa chua 2 1,500 3,000", "Tổng tiền 186,180"])
+        items = extract_items(words, boxes)["items"]
+        self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"], i["line_ok"]) for i in items],
+                         [("Đậu cô ve", 0.39, 25000, 9750, True), ("NẠC HEO XAY", 0.146, 155000, 22630, True),
+                          ("Thịt bò thăn", 0.52, 290000, 150800, True), ("Sữa chua", 2, 1500, 3000, True)])
+
     def test_garbled_header_and_invented_total_at_the_top(self):
         # train ...014wbfza: "SL" and "Đơn giá" misread, and the fine-tuned OCR wrote "Tổng thanh toán" above the store name
         words, boxes = lay(["Tổng thanh toán", "CỬA HÀNG NĂM OÁNH", "HÓA ĐƠN BÁN HÀNG", "S1. Đơn giú Thành tiền",

@@ -234,7 +234,17 @@ không đọc được để app báo cho người dùng thay vì đưa ra số 
 
 File nguồn: `eval_items_v3/items_train_v3.json`, `eval_items_v3/items_validation_v3.json` (cùng lệnh như bản 2).
 
-## 9. Tổng tiền đối chiếu với tổng các món (19/11/2026)
+### 8b. Số lượng thập phân không có "/KG" (19/11/2026)
+
+Thử web demo trên một hóa đơn SunMart thấy `Thịt bò thăn` ra SL 52 thay vì 0,52 kg. Trên train có cùng kiểu ở 2 hóa đơn
+(9 dòng): `0.39 Kg 25,000 9,750` (`...013iulwh`), `0.146 155,000 22,630` (`...014xyqra`). Luật cũ hoặc bỏ qua số thập phân
+(SL 1, dòng sai phép tính), hoặc đọc ngược: "0.146" thành 146 đồng và SL 155, vẫn thỏa 155 × 146 = 22 630 vì cân nặng ×
+giá/kg luôn có cùng chữ số với (giá ÷ 1000) × (cân nặng × 1000).
+
+Sửa (`_decimal_quantity`): thử trước một số thập phân 0 < q < 100 làm số lượng, chỉ nhận khi q × đơn giá = thành tiền
+(sai số ≤ 0,5 % hoặc 2 đồng) với hai số tiền khác trên dòng. Tổng các món không đổi (thành tiền vốn đã đúng); đổi 9 dòng
+train và 1 dòng validation, cả 10 đều đúng hơn khi đọc lại (ví dụ `BA RỌI HEO` 180 × 248 → 0,248 kg × 180 000); dòng thỏa
+phép tính: train 1864 → 1868, validation 206 → 207 trên 226.
 
 **Vì sao.** Trên train, khi phần mặt hàng (bản 3) báo `verified`, tổng các món bằng tổng chuẩn ở **530 / 547 hóa đơn
 (96,9 %)**; trong khi model chỉ đọc đúng tổng tiền ở 76,5 % hóa đơn validation. Trong 17 ca `verified` sai trên train, 3 ca
