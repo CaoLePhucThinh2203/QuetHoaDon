@@ -14,6 +14,9 @@ detection:
   low_text: 0.4
   long_size: 1280           # keep equal to preprocessing.target_max_dim
   nested_threshold: 0.8     # drop boxes >= 80% inside a larger box (comma/dot boxes)
+  merge_lines: false        # read touching boxes of one line as one segment (src/detection/line_merge.py)
+  merge_max_gap: 1.0        # largest gap between merged boxes, in text heights
+  merge_max_aspect: 16.0    # a segment is at most 16 heights wide (VietOCR reads crops 32 px high, <= 512 px wide)
 
 recognition:
   model_name: "VietOCR"

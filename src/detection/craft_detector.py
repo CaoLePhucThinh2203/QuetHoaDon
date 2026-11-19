@@ -10,6 +10,7 @@ from typing import List, Optional
 import numpy as np
 
 from src.detection.detector import BaseTextDetector, TextRegion
+from src.detection.line_merge import merge_segments
 from src.detection.postprocess import drop_nested, sort_reading_order
 
 _PATCHED = False
@@ -93,4 +94,8 @@ class CraftDetector(BaseTextDetector):
                 orig_bbox=[int(v / scale_ratio) for v in (x0, y0, x1, y1)],
                 score=None,   # craft-text-detector does not expose a per-box score
             ))
-        return sort_reading_order(drop_nested(regions, self.nested_thr))
+        kept = drop_nested(regions, self.nested_thr)
+        if self.config.get("merge_lines"):        # read touching boxes of one line as one segment (line_merge.py)
+            return merge_segments(kept, max_gap=self.config.get("merge_max_gap", 1.0),
+                                  max_aspect=self.config.get("merge_max_aspect", 16.0))
+        return sort_reading_order(kept)

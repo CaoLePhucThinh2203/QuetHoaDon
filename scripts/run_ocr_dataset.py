@@ -34,19 +34,31 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--weights", default=None, help="fine-tuned VietOCR state dict (default: pretrained)")
     ap.add_argument("--nested-threshold", type=float, default=None)
+    ap.add_argument("--merge-lines", action="store_true",
+                    help="read touching boxes of one line as one segment (src/detection/line_merge.py)")
+    ap.add_argument("--merge-max-gap", type=float, default=None, help="largest merged gap, in text heights (1.0)")
     ap.add_argument("--config-dir", default=str(ROOT / "configs"))
     ap.add_argument("--limit", type=int, default=None, help="first N images only (smoke test)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     args = ap.parse_args()
 
+    import torch
     device = args.device
     if device == "auto":
-        import torch
         device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device == "cuda" and not torch.cuda.is_available():
+        sys.exit("--device cuda but no GPU is visible (Kaggle: Accelerator = GPU T4). On CPU the whole dataset takes "
+                 "hours; pass --device cpu to run it anyway.")
+    if device == "cpu" and args.device == "auto":
+        print("[ocr] WARNING: no GPU visible, running on CPU (several times slower)", flush=True)
     m = load_config(args.config_dir)["model"]
     det, rec = dict(m["detection"]), dict(m["recognition"])
     if args.nested_threshold is not None:
         det["nested_threshold"] = args.nested_threshold
+    if args.merge_lines:
+        det["merge_lines"] = True
+    if args.merge_max_gap is not None:
+        det["merge_max_gap"] = args.merge_max_gap
     if args.weights:
         rec["weights"] = args.weights
 
@@ -59,7 +71,7 @@ def main() -> None:
     if args.limit:
         paths = paths[:args.limit]
     print(f"[ocr] {len(paths)} images (missing on disk: {missing}) | device={device} | weights={args.weights or 'pretrained'}"
-          f" | nested_threshold={det.get('nested_threshold')}", flush=True)
+          f" | nested_threshold={det.get('nested_threshold')} | merge_lines={bool(det.get('merge_lines'))}", flush=True)
 
     dirs = OutputDirs.from_base(args.out)
     pipeline = ReceiptPipeline(ImagePreprocessor(**m["preprocessing"]), CraftDetector(det, device=device),

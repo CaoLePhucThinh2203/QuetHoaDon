@@ -203,7 +203,7 @@ class ReceiptExtractor:
                         with_ocr: bool = True, postprocess: bool = False,
                         ocr_weights: Optional[str] = None, items: bool = False,
                         nested_threshold: Optional[float] = None,
-                        total_from_items: bool = False) -> "ReceiptExtractor":
+                        total_from_items: bool = False, merge_lines: bool = False) -> "ReceiptExtractor":
         """Load a fine-tuned checkpoint (the ``best`` folder written by training) and, optionally, CRAFT + VietOCR.
 
         ``ocr_weights`` is the fine-tuned VietOCR state dict; the checkpoint must have been trained on the OCR of the
@@ -233,6 +233,8 @@ class ReceiptExtractor:
             cfg["recognition"] = dict(cfg["recognition"], weights=ocr_weights)
         if nested_threshold is not None:        # the final configuration was scored with 0.5 (config default 0.8)
             cfg["detection"] = dict(cfg["detection"], nested_threshold=nested_threshold)
+        if merge_lines:                         # only with a checkpoint trained on merged-segment OCR
+            cfg["detection"] = dict(cfg["detection"], merge_lines=True)
         pipeline = build_ocr_pipeline(cfg, device) if with_ocr else None
         return cls(probs_fn, pipeline, postprocess, items, total_from_items)
 
