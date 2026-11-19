@@ -1,6 +1,6 @@
 # Tiến độ sau báo cáo cuối (18–19/11/2026)
 
-Nhánh `Thinh/items-line-grouping`, PR #20. Ưu tiên: **tổng tiền, tên hàng, đơn giá, số lượng** (người bán, địa chỉ, ngày giờ
+Nhánh `thinh-dev` (gộp mọi việc từ 18/11). Ưu tiên: **tổng tiền, tên hàng, đơn giá, số lượng** (người bán, địa chỉ, ngày giờ
 không cải thiện thêm). Luật viết trên **train**, validation chấm một lần mỗi vòng, **test không chấm lại**: mọi số trong báo
 cáo cuối giữ nguyên. Chi tiết và file nguồn: [`items_plan.md`](items_plan.md) mục 7–9.
 
@@ -39,7 +39,7 @@ Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụ
 2. Gõ tay tên hàng cho 30–50 hóa đơn để đo được độ đúng của tên hàng.
 3. Phần lớn lỗi mặt hàng còn lại do OCR đọc sai số: cần OCR theo dòng (kế hoạch Tuần 5, mục 1.4).
 
-## OCR (nhánh `Thinh/ocr-line-merge`)
+## OCR
 
 - **Đọc theo đoạn** (`--merge-lines`, notebook 09, Kaggle 19/11): chữ OCR sạch hơn (CER "trần OCR" validation: tổng tiền
   0,517 → 0,445, địa chỉ 0,198 → 0,155) nhưng **mặt hàng không đổi** (train 569 → 570, sửa 23 / hỏng 22; validation
