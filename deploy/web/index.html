@@ -6,10 +6,12 @@
 <title>Quét hóa đơn</title>
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#677084; --line:#e2e5ea; --accent:#1f6feb;
-          --ok:#1a7f37; --warn:#b35900; --bad:#c62828; }
+          --ok:#1a7f37; --warn:#b35900; --bad:#c62828;
+          --grey-bg:#e7e9ee; --grey-fg:#4b5363; --green-bg:#dcf5e3; --green-fg:#14672d; --red-bg:#fde2e2; --red-fg:#a51d1d; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#0f1218; --card:#171b23; --text:#e6e9ef; --muted:#9aa3b2; --line:#2a303b; --accent:#58a6ff;
-            --ok:#3fb950; --warn:#e3a33b; --bad:#ff6b6b; }
+            --ok:#3fb950; --warn:#e3a33b; --bad:#ff6b6b;
+            --grey-bg:#2a303b; --grey-fg:#c3c9d4; --green-bg:#173d24; --green-fg:#7ee2a0; --red-bg:#4a1d1d; --red-fg:#ffb3b3; }
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -29,15 +31,20 @@
   td.num, th.num { text-align:right; white-space:nowrap; }
   .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
   .scroll { overflow-x:auto; }
-  #status { margin-top:8px; }
+  nav { display:flex; gap:16px; margin-bottom:16px; }
+  nav a { color:var(--muted); text-decoration:none; font-weight:600; padding-bottom:4px; }
+  nav a.active { color:var(--text); border-bottom:2px solid var(--accent); }
+  .pill { display:inline-block; margin-top:8px; padding:6px 14px; border-radius:999px; font-size:.9rem; font-weight:600; }
+  .pill.starting { background:var(--grey-bg); color:var(--grey-fg); }
+  .pill.ready { background:var(--green-bg); color:var(--green-fg); }
+  .pill.error { background:var(--red-bg); color:var(--red-fg); }
 </style>
 </head>
 <body>
 <main>
+  <nav><a href="/" class="active">Quét hóa đơn</a><a href="/info.html">Thông tin</a></nav>
   <h1>Quét hóa đơn</h1>
-  <div class="muted">Chụp hoặc tải ảnh hóa đơn: hệ thống đọc tổng tiền và từng mặt hàng (tên, số lượng, đơn giá, thành tiền).
-    Ảnh chỉ dùng để đọc, không được lưu lại.</div>
-  <div id="status" class="muted">Đang kiểm tra máy chủ…</div>
+  <div id="status" class="pill starting">Máy chủ đang khởi động</div>
 
   <div class="card">
     <label class="drop" id="drop">
@@ -57,13 +64,14 @@ let jpegBase64 = null, fileName = "receipt";
 const vnd = (v) => v == null ? "" : Number(v).toLocaleString("vi-VN") + " đ";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 
+function setStatus(kind, text) { $("status").className = "pill " + kind; $("status").textContent = text; }
 async function checkHealth() {
   try {
     const h = await (await fetch("/api/health")).json();
-    if (h.status === "ready") { $("status").innerHTML = '<span class="ok">● Máy chủ sẵn sàng</span>'; return; }
-    if (h.status === "error") { $("status").innerHTML = '<span class="bad">● Máy chủ lỗi: ' + esc(h.error) + "</span>"; return; }
-    $("status").textContent = "● Máy chủ đang khởi động (có thể mất vài phút sau khi ngủ)…";
-  } catch { $("status").textContent = "● Đang đánh thức máy chủ…"; }
+    if (h.status === "ready") return setStatus("ready", "Máy chủ đang hoạt động");
+    if (h.status === "error") return setStatus("error", "Máy chủ lỗi: " + (h.error || ""));
+    setStatus("starting", "Máy chủ đang khởi động");
+  } catch { setStatus("starting", "Máy chủ đang khởi động"); }
   setTimeout(checkHealth, 10000);
 }
 checkHealth();
@@ -119,7 +127,7 @@ function show(d) {
   html += "</div>";
   if (items.length) {
     const msg = check.status === "verified"
-      ? '<span class="ok">✅ Tổng các món (' + vnd(check.sum) + ") khớp dòng tổng trên hóa đơn.</span>"
+      ? '<span class="ok">Tổng các món (' + vnd(check.sum) + ") khớp dòng tổng trên hóa đơn.</span>"
       : '<span class="warn">⚠️ Tổng các món (' + vnd(check.sum) + ") không khớp dòng tổng: có thể thiếu hoặc đọc sai một món.</span>";
     html += '<div class="card"><div>' + msg + '</div><div class="scroll"><table><tr><th>#</th><th>Tên hàng</th>' +
       '<th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th></th></tr>';
@@ -127,7 +135,7 @@ function show(d) {
       const ok = it.quantity != null && it.unit_price != null && Math.abs(it.quantity * it.unit_price - it.amount) < 1;
       html += "<tr><td>" + (i + 1) + "</td><td>" + esc(it.name) + '</td><td class="num">' + esc(it.quantity) +
         '</td><td class="num">' + vnd(it.unit_price) + '</td><td class="num">' + vnd(it.amount) + "</td><td>" +
-        (ok ? '<span class="ok">✓</span>' : '<span class="warn">⚠</span>') + "</td></tr>";
+        (ok ? "" : '<span class="warn">⚠</span>') + "</td></tr>";
     });
     html += "</table></div></div>";
   } else {

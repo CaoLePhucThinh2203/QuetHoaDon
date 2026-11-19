@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thông tin đề án</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#677084; --line:#e2e5ea; --accent:#1f6feb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1218; --card:#171b23; --text:#e6e9ef; --muted:#9aa3b2; --line:#2a303b; --accent:#58a6ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  nav { display:flex; gap:16px; margin-bottom:16px; }
+  nav a { color:var(--muted); text-decoration:none; font-weight:600; padding-bottom:4px; }
+  nav a.active { color:var(--text); border-bottom:2px solid var(--accent); }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  h2 { font-size:1.1rem; margin:0 0 8px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-top:16px; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:0; }
+  dt { color:var(--muted); } dd { margin:0; }
+  ol, ul { margin:0; padding-left:20px; }
+  a { color:var(--accent); }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="/">Quét hóa đơn</a><a href="/info.html" class="active">Thông tin</a></nav>
+  <h1>Thông tin đề án</h1>
+  <div class="muted">QuetHoaDon · Đọc hóa đơn tiếng Việt từ ảnh chụp</div>
+
+  <div class="card">
+    <h2>Học phần và đề án</h2>
+    <dl id="course"></dl>
+  </div>
+
+  <div class="card">
+    <h2>Thành viên</h2>
+    <div class="scroll"><table id="members"><tr><th>#</th><th>Họ và tên</th><th>MSSV</th></tr></table></div>
+  </div>
+
+  <div class="card">
+    <h2>Bài toán</h2>
+    <p style="margin:0">Từ một ảnh chụp hóa đơn bán lẻ tiếng Việt, hệ thống đọc <b>tổng tiền</b> và <b>từng mặt hàng</b>
+      (tên, số lượng, đơn giá, thành tiền), kèm người bán, địa chỉ, ngày giờ. Kết quả trả về dạng JSON để một ứng dụng
+      quản lý chi tiêu có thể dùng.</p>
+  </div>
+
+  <div class="card">
+    <h2>Dữ liệu</h2>
+    <p style="margin:0">MC-OCR 2021 (1 153 ảnh hóa đơn có nhãn bốn trường: người bán, địa chỉ, ngày giờ, tổng tiền).
+      Chia theo hóa đơn: train 922, validation 115, test 116. Tập test chỉ chấm một lần sau khi đã chốt cấu hình.</p>
+  </div>
+
+  <div class="card">
+    <h2>Pipeline</h2>
+    <ol>
+      <li>Tiền xử lý ảnh: đổi cỡ, chỉnh nghiêng, tăng tương phản.</li>
+      <li>CRAFT: tìm các vùng chữ.</li>
+      <li>VietOCR (tinh chỉnh trên MC-OCR): đọc chữ trong từng vùng.</li>
+      <li>LayoutXLM (fine-tune, M1b v3): gán nhãn từng từ theo chữ và vị trí.</li>
+      <li>Luật hậu xử lý: ngày giờ, làm sạch người bán và địa chỉ, đọc mặt hàng, đối chiếu tổng các món với tổng tiền.</li>
+      <li>Phát hiện ảnh khó đọc để yêu cầu chụp lại thay vì trả về số sai.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Kết quả chính</h2>
+    <div class="scroll"><table>
+      <tr><th>Chỉ số</th><th class="num">Kết quả</th></tr>
+      <tr><td>Tổng tiền đúng tuyệt đối (test, cấu hình nộp)</td><td class="num">72,4 %</td></tr>
+      <tr><td>Đúng cả bốn trường (test, cấu hình nộp; Tuần 4: 9,6 %)</td><td class="num">18,4 %</td></tr>
+      <tr><td>Tổng tiền đúng (validation, có đối chiếu tổng các món)</td><td class="num">81,6 %</td></tr>
+      <tr><td>Tổng các món bằng tổng chuẩn (validation)</td><td class="num">74,5 %</td></tr>
+      <tr><td>Khi báo "khớp dòng tổng", tỉ lệ đúng (validation)</td><td class="num">98,5 %</td></tr>
+      <tr><td>Thời gian OCR mỗi ảnh (GPU T4)</td><td class="num">khoảng 2,4 giây</td></tr>
+    </table></div>
+    <div class="muted" style="margin-top:8px">Hệ thống vẫn có thể đọc sai; hãy kiểm tra lại kết quả trước khi dùng.</div>
+  </div>
+
+  <div class="card">
+    <h2>Liên kết</h2>
+    <ul>
+      <li>Mã nguồn: <a href="https://github.com/CaoLePhucThinh2203/QuetHoaDon" target="_blank" rel="noopener">github.com/CaoLePhucThinh2203/QuetHoaDon</a></li>
+      <li>Dữ liệu: <a href="https://www.kaggle.com/datasets/domixi1989/vietnamese-receipts-mc-ocr-2021" target="_blank" rel="noopener">Vietnamese Receipts MC-OCR 2021 (Kaggle)</a></li>
+    </ul>
+  </div>
+</main>
+<script>
+// Điền thông tin học phần ở đây; mục nào để trống sẽ không hiện.
+const COURSE = [
+  ["Học phần", ""],
+  ["Mã học phần", ""],
+  ["Giảng viên", ""],
+  ["Trường / Khoa", ""],
+  ["Học kỳ", ""],
+  ["Đề án cuối kì", "QuetHoaDon: đọc tổng tiền và mặt hàng từ ảnh hóa đơn tiếng Việt (OCR + trích xuất thông tin)"],
+  ["Thời gian thực hiện", "5 tuần (Tuần 1–5)"],
+];
+const MEMBERS = [
+  ["Dam Huynh Hoai Nam", "24090022"],
+  ["Cao Le Phuc Thinh", "24090024"],
+  ["Dau Tuan Loc", "24090025"],
+  ["Truong Dinh Nhien", "24090060"],
+];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+document.getElementById("course").innerHTML = COURSE.filter(([, v]) => v)
+  .map(([k, v]) => "<dt>" + esc(k) + "</dt><dd>" + esc(v) + "</dd>").join("");
+document.getElementById("members").innerHTML += MEMBERS
+  .map(([n, id], i) => "<tr><td>" + (i + 1) + "</td><td>" + esc(n) + "</td><td>" + esc(id) + "</td></tr>").join("");
+</script>
+</body>
+</html>
