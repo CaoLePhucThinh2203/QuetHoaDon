@@ -38,3 +38,13 @@ Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụ
 1. Nhận ra ảnh không đọc được hoặc bị xoay (cần Kaggle).
 2. Gõ tay tên hàng cho 30–50 hóa đơn để đo được độ đúng của tên hàng.
 3. Phần lớn lỗi mặt hàng còn lại do OCR đọc sai số: cần OCR theo dòng (kế hoạch Tuần 5, mục 1.4).
+
+## OCR (nhánh `Thinh/ocr-line-merge`)
+
+- **Đọc theo đoạn** (`--merge-lines`, notebook 09, Kaggle 19/11): chữ OCR sạch hơn (CER "trần OCR" validation: tổng tiền
+  0,517 → 0,445, địa chỉ 0,198 → 0,155) nhưng **mặt hàng không đổi** (train 569 → 570, sửa 23 / hỏng 22; validation
+  70 → 69) và OCR **chậm hơn 48 %** (2,39 → 3,53 s/ảnh). Không dùng; mặc định tắt.
+- **Tinh chỉnh VietOCR cho chữ số** (notebook 10, chưa chạy): chữ số tổng hợp kiểu hóa đơn nhiệt
+  (`src/recognition/synth_numbers.py`) + con số của hóa đơn train `verified` (`src/recognition/number_pairs.py`), bộ đo
+  chữ số (`scripts/eval_numbers.py`: vùng TOTAL_COST có nhãn của validation làm cổng), rồi OCR lại và M1b v4. Hai cổng
+  viết sẵn trong notebook.
