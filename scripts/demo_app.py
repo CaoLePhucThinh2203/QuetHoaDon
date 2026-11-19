@@ -74,6 +74,8 @@ def make_scan(extractor: ReceiptExtractor):
         rows = field_rows(compact)
         missing = missing_fields(compact)
         status = f"Đọc được {len(rows)} / 4 trường, {result['n_words']} từ OCR."
+        if compact.get("warning") == "unreadable":
+            status = "⚠️ Ảnh khó đọc: chữ OCR lặp lại bất thường, kết quả không đáng tin. Hãy chụp lại rõ hơn, thẳng và đủ sáng."
         if missing:
             status += " Không đọc được: " + ", ".join(missing) + "."
         fields_df = pd.DataFrame(rows, columns=list(empty_fields.columns)) if rows else empty_fields
@@ -137,13 +139,16 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=7860)
     ap.add_argument("--total-from-items", action="store_true",
                     help="use the verified item sum when the predicted total is not printed on a total line")
+    ap.add_argument("--quality-check", action="store_true",
+                    help="flag unreadable photos (OCR repeating invented phrases) instead of showing their numbers")
     args = ap.parse_args()
 
     print("[demo] loading the final configuration ...", flush=True)
     extractor = ReceiptExtractor.from_checkpoint(args.checkpoint, args.config_dir, args.device, with_ocr=True,
                                                  postprocess=True, ocr_weights=args.ocr_weights, items=True,
                                                  nested_threshold=args.nested_threshold,
-                                                 total_from_items=args.total_from_items)
+                                                 total_from_items=args.total_from_items,
+                                                 quality_check=args.quality_check)
     examples = [e for e in args.examples if os.path.exists(e)]
     demo = build_ui(make_scan(extractor), examples)
     demo.queue(max_size=16).launch(share=args.share, server_name="0.0.0.0", server_port=args.port)

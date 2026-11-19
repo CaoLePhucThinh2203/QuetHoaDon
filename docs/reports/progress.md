@@ -52,3 +52,11 @@ Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụ
   dòng TOTAL_COST 92,4 % (224), số tổng hợp 96,1 % (1000). Nghĩa là VietOCR đã đọc chữ số gần đúng hết; lỗi tổng tiền và
   mặt hàng còn lại chủ yếu do CRAFT bỏ sót / cắt sai vùng, ảnh không đọc được và nhãn gốc, không do đọc nhầm số.
   Cùng kết luận với vòng 2 (18/11): tinh chỉnh thêm VietOCR trên dữ liệu này không có lợi.
+- **Chặn bịa chữ** (`src/recognition/quality.py`, tùy chọn `--quality-check` của `extract_receipt.py` / `demo_app.py`,
+  `ReceiptExtractor(quality_check=True)`, mặc định tắt): ảnh bị gắn cờ khi ≥ 30 % số từ thuộc cụm 3 từ lặp lại ≥ 3 lần
+  (VietOCR tinh chỉnh viết lại "Tổng thanh toán", "104 Trần Phú", "10.000đ" trên ảnh không đọc được). Ngưỡng chọn trên
+  train: gắn cờ 48 / 922 hóa đơn, cả 48 là ảnh bịa chữ, không hóa đơn thường nào; bỏ được 4 `verified` giả (món bịa cộng
+  đúng "tổng" bịa, ví dụ 10 000 so với tổng thật 79 800). Validation (kiểm một lần): gắn cờ 5 / 115, cả 5 trước đây ra tổng
+  tiền sai (10 000, 50 000, 55 104…), không mất tổng tiền đúng nào. Khi bị gắn cờ: đầu ra gọn chỉ còn
+  `"warning": "unreadable"`, mặt hàng không bao giờ `verified`, không lấy tổng từ các món; web demo hiện "Ảnh khó đọc,
+  hãy chụp lại".
