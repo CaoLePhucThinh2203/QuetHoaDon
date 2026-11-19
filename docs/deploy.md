@@ -42,7 +42,9 @@ Repo phải có đúng: `m1b_v3_checkpoint/best/config.json`, `m1b_v3_checkpoint
 1. huggingface.co → **New Space** → tên `quethoadon-api`, **SDK: Docker**, template **Blank**, hardware **CPU basic
    (free)**, chọn **Private** (ảnh hóa đơn có tên, số điện thoại) → Create.
 2. Tab **Files** → **Add file → Upload files**: tải lên `deploy/api/Dockerfile` và `deploy/api/README.md` (README có
-   dòng `app_port: 7860`). Dockerfile tự lấy code từ nhánh `thinh-dev` trên GitHub.
+   dòng `app_port: 7860`). Dockerfile tự lấy code từ nhánh `thinh-dev` trên GitHub. Nên tải hai file từ GitHub
+   (mở file trên nhánh `thinh-dev` → **Download raw file**) thay vì lấy từ máy Windows: Git trên Windows có thể đổi
+   xuống dòng sang CRLF, làm hỏng các dòng `RUN ... \` của Dockerfile.
 3. Tab **Settings → Variables and secrets**:
    - Variable `WEIGHTS_REPO` = `<user>/quethoadon-weights`
    - Secret `HF_TOKEN` = token **Read** ở bước 1
