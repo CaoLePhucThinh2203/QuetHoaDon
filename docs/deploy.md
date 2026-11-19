@@ -39,11 +39,13 @@ Repo phải có đúng: `m1b_v3_checkpoint/best/config.json`, `m1b_v3_checkpoint
 
 ## 2. Tạo Space chạy API
 
-Docker Space cần gói trả phí, nên dùng **SDK Gradio** (miễn phí): file `deploy/space/app.py` vẫn chạy API FastAPI ở
-cổng 7860, tự cài thêm phần pip không cài được (detectron2, VietOCR, CRAFT) khi khởi động.
+Docker Space cần gói trả phí; tài khoản miễn phí chỉ tạo được Space **Gradio** trên phần cứng **ZeroGPU**, và ZeroGPU
+chỉ chạy app Gradio thật. Vì vậy `deploy/space/app.py` là một app Gradio: các hàm `extract_b64` và `health` của nó
+chính là API mà Vercel gọi (`/gradio_api/call/...`). Model chạy CPU trong container; app tự cài detectron2, VietOCR,
+CRAFT khi khởi động.
 
-1. huggingface.co → **New Space** → tên `quethoadon-api`, **SDK: Gradio**, template **Blank**, hardware **CPU basic
-   (free)**, chọn **Private** (ảnh hóa đơn có tên, số điện thoại) → Create.
+1. huggingface.co → **New Space** → tên `quethoadon-api`, **SDK: Gradio**, template **Blank**, hardware mặc định
+   (ZeroGPU), chọn **Private** (ảnh hóa đơn có tên, số điện thoại) → Create.
 2. Tab **Files** → **Add file → Upload files**: tải lên 4 file trong `deploy/space/`: `app.py`, `requirements.txt`,
    `packages.txt`, `README.md` (ghi đè README mặc định). `app.py` tự lấy code từ nhánh `thinh-dev` trên GitHub.
 3. Tab **Settings → Variables and secrets**:
@@ -55,15 +57,8 @@ cổng 7860, tự cài thêm phần pip không cài được (detectron2, VietOC
    10–20 phút) và nạp model; xem tab **Logs**. Trong lúc đó `/health` trả `"status":"loading"` kèm `stage` (đang làm gì).
 5. Kiểm tra (Space private nên phải gửi token):
 
-```powershell
-curl.exe -H "Authorization: Bearer <HF_TOKEN>" https://<user>-quethoadon-api.hf.space/health
-```
-
-Phải ra `"status":"ready"`. Rồi thử một ảnh:
-
-```powershell
-curl.exe -H "Authorization: Bearer <HF_TOKEN>" -H "x-api-key: <API_KEY>" -F "file=@receipt.jpg" https://<user>-quethoadon-api.hf.space/extract
-```
+Mở trang Space: ô **health** phải ra `"status": "ready"` (bấm **Kiểm tra trạng thái** để cập nhật); khi đó tải một
+ảnh lên và bấm **Quét** để thử.
 
 `"status":"error"` thì đọc `error` và tab Logs (thường do sai `WEIGHTS_REPO` hoặc thiếu `HF_TOKEN`).
 
