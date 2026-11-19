@@ -21,6 +21,15 @@ import traceback
 
 import uvicorn
 
+try:                                               # ZeroGPU hardware stops a Space without a @spaces.GPU function;
+    import spaces                                  # the API itself runs on CPU (choose "CPU basic" when possible)
+
+    @spaces.GPU
+    def _zero_gpu_probe() -> bool:
+        return True
+except ImportError:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.join(HERE, "QuetHoaDon")
 BRANCH = os.environ.get("BRANCH", "thinh-dev")
