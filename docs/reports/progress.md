@@ -44,7 +44,11 @@ Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụ
 - **Đọc theo đoạn** (`--merge-lines`, notebook 09, Kaggle 19/11): chữ OCR sạch hơn (CER "trần OCR" validation: tổng tiền
   0,517 → 0,445, địa chỉ 0,198 → 0,155) nhưng **mặt hàng không đổi** (train 569 → 570, sửa 23 / hỏng 22; validation
   70 → 69) và OCR **chậm hơn 48 %** (2,39 → 3,53 s/ảnh). Không dùng; mặc định tắt.
-- **Tinh chỉnh VietOCR cho chữ số** (notebook 10, chưa chạy): chữ số tổng hợp kiểu hóa đơn nhiệt
-  (`src/recognition/synth_numbers.py`) + con số của hóa đơn train `verified` (`src/recognition/number_pairs.py`), bộ đo
-  chữ số (`scripts/eval_numbers.py`: vùng TOTAL_COST có nhãn của validation làm cổng), rồi OCR lại và M1b v4. Hai cổng
-  viết sẵn trong notebook.
+- **Tinh chỉnh VietOCR cho chữ số** (notebook 10, Kaggle 19/11): 15 000 chữ số tổng hợp kiểu hóa đơn nhiệt
+  (`src/recognition/synth_numbers.py`) + 991 con số của hóa đơn train `verified` (`src/recognition/number_pairs.py`) trộn
+  với 23 151 cặp cũ. **Kết quả âm:** CER vùng CRAFT validation 5,68 % (vòng 1) → 6,20 % / 5,89 % ở epoch 1 / 2, dừng sớm,
+  giữ VietOCR vòng 1; cổng 1 không qua nên không OCR lại, không train M1b v4. Mốc bộ đo chữ số (`scripts/eval_numbers.py`,
+  VietOCR vòng 1, validation): **vùng TOTAL_COST có nhãn đúng chữ số 98,1 %** (514 vùng, CER 7,55 % chủ yếu ở phần chữ),
+  dòng TOTAL_COST 92,4 % (224), số tổng hợp 96,1 % (1000). Nghĩa là VietOCR đã đọc chữ số gần đúng hết; lỗi tổng tiền và
+  mặt hàng còn lại chủ yếu do CRAFT bỏ sót / cắt sai vùng, ảnh không đọc được và nhãn gốc, không do đọc nhầm số.
+  Cùng kết luận với vòng 2 (18/11): tinh chỉnh thêm VietOCR trên dữ liệu này không có lợi.
