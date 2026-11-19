@@ -30,7 +30,8 @@ REPO_DIR = os.environ.get("REPO_DIR", str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, REPO_DIR)
 
 MAX_BYTES = 10 * 1024 * 1024
-STATE: Dict[str, Any] = {"status": "loading", "error": None, "extractor": None, "loaded_in_sec": None}
+STATE: Dict[str, Any] = {"status": "loading", "stage": "starting", "error": None, "extractor": None,
+                         "loaded_in_sec": None}
 LOCK = threading.Lock()                      # one receipt at a time: the CPU is the bottleneck anyway
 
 app = FastAPI(title="QuetHoaDon receipt API", version="1.0")
@@ -41,20 +42,29 @@ def _load() -> None:
     try:
         from huggingface_hub import snapshot_download
         from src.pipeline.extractor import ReceiptExtractor
-        local = snapshot_download(os.environ["WEIGHTS_REPO"], token=os.environ.get("HF_TOKEN") or None)
+        STATE["stage"] = "downloading weights"
+        local = snapshot_download(os.environ["WEIGHTS_REPO"], token=os.environ.get("HF_TOKEN") or None,
+                                  allow_patterns=["m1b_v3_checkpoint/*", "m1b_v3_checkpoint/**", "vietocr_finetuned.pth"])
+        STATE["stage"] = "loading model"
         STATE["extractor"] = ReceiptExtractor.from_checkpoint(
             os.path.join(local, "m1b_v3_checkpoint", "best"), os.path.join(REPO_DIR, "configs"),
             os.environ.get("DEVICE", "cpu"), with_ocr=True, postprocess=True,
             ocr_weights=os.path.join(local, "vietocr_finetuned.pth"), items=True, nested_threshold=0.5,
             total_from_items=True, quality_check=True)
-        STATE.update(status="ready", loaded_in_sec=round(time.time() - t0, 1))
+        STATE.update(status="ready", stage="ready", loaded_in_sec=round(time.time() - t0, 1))
     except Exception as exc:                 # keep the server up so /health can say what went wrong
         STATE.update(status="error", error=f"{type(exc).__name__}: {exc}")
 
 
 @app.on_event("startup")
 def start_loading() -> None:
-    threading.Thread(target=_load, daemon=True).start()
+    if os.environ.get("LOAD_ON_STARTUP", "1") == "1":     # deploy/space/app.py loads after installing detectron2
+        threading.Thread(target=_load, daemon=True).start()
+
+
+@app.get("/")
+def root() -> Dict[str, Any]:
+    return {"service": "QuetHoaDon receipt API", "health": "/health", "extract": "POST /extract (field: file)"}
 
 
 @app.get("/health")
