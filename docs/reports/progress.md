@@ -11,18 +11,19 @@ cáo cuối giữ nguyên. Chi tiết và file nguồn: [`items_plan.md`](items_
 | Mặt hàng bản 2 | Gom dòng theo độ nghiêng của ảnh; gộp số OCR tách đôi (`399` + `9,000`); giữ tên hàng dính vào dòng "Giá đăng ký" | `src/extraction/line_items.py` |
 | Mặt hàng bản 3 | Hàng cân theo kg (`40 000/KG X 0,322 KG`: số lượng 0,322, không còn đọc cân nặng thành 322 đồng); nhận tiêu đề cột bị OCR đọc sai; bỏ qua dòng "Tổng" giả ở đầu hóa đơn; "giò heo" không bị bỏ | `src/extraction/line_items.py` |
 | Số lượng thập phân | `0, 52 290,000 150,800` và `0.146 155,000 22,630` (không có "/KG"): SL 0,52 / 0,146 kg, chỉ nhận khi SL × đơn giá = thành tiền; trước đó ra SL 52 hoặc đọc ngược 155 × 146 đ | `src/extraction/line_items.py` |
+| OCR lặp dấu, mất chữ số | Đọc được `210, ,000` và cân nặng `0, .460 KG`; khi đúng một dòng sai phép tính mà SL × đơn giá làm tổng các món khớp tổng in trên hóa đơn thì sửa dòng đó (`45 ,000 5, 000` → 45 000) | `src/extraction/line_items.py` |
 | Tổng tiền | Khi các món khớp một dòng "Tổng" in trên hóa đơn mà số model chọn không nằm trên dòng "Tổng" nào, dùng tổng các món. Tùy chọn `--total-from-items`, mặc định tắt | `src/extraction/total_check.py`, `extractor.py`, `extract_receipt.py`, `demo_app.py`, `decode_from_probs.py` |
-| Khác | `.gitignore` chặn thư mục kết quả tải về (`phase1_eval/`, `kaggle/`, `final_eval/`, `eval/`); 20 unit test mới (314 test, đều qua) | `.gitignore`, `tests/` |
+| Khác | `.gitignore` chặn thư mục kết quả tải về (`phase1_eval/`, `kaggle/`, `final_eval/`, `eval/`); 23 unit test mới (317 test, đều qua) | `.gitignore`, `tests/` |
 
 ## Kết quả (validation)
 
 | Chỉ số | Trước | Sau |
 | --- | --- | --- |
-| Tổng các món = tổng chuẩn | 62,8 % | **73,4 %** (sửa 10, hỏng 0) |
+| Tổng các món = tổng chuẩn | 62,8 % | **74,5 %** (sửa 11, hỏng 0) |
 | Đọc được ít nhất một món | 85,1 % | 90,4 % |
 | Tổng tiền đúng (bật `--total-from-items`) | 76,5 % | **81,6 %** (sửa 5, hỏng 0) |
 
-Train, tổng các món = tổng chuẩn: 56,9 % → 70,9 %.
+Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụp thật (ngoài MC-OCR): đọc đúng cả 5 món.
 
 ## Cần biết
 

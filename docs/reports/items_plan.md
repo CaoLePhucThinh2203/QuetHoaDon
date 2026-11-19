@@ -246,6 +246,31 @@ Sửa (`_decimal_quantity`): thử trước một số thập phân 0 < q < 100 
 train và 1 dòng validation, cả 10 đều đúng hơn khi đọc lại (ví dụ `BA RỌI HEO` 180 × 248 → 0,248 kg × 180 000); dòng thỏa
 phép tính: train 1864 → 1868, validation 206 → 207 trên 226.
 
+### 8c. Dấu phân cách lặp và sửa một dòng theo tổng in (19/11/2026)
+
+Chạy OCR cấu hình cuối trên chính ảnh SunMart (máy cá nhân, CRAFT + VietOCR tinh chỉnh, lọc 0,5) thấy hai lỗi OCR mà luật
+bù được; cả hai cũng gặp trên train:
+
+- **Dấu phân cách lặp** (`210, ,000`, `439, ,850`, cân nặng `0, .460 KG`): hai hộp chồng nhau cùng đọc dấu phẩy. Số tiền và
+  cân nặng giờ chấp nhận một dấu lặp. Bản đầu làm hỏng `...014fomil` (cân nặng "0, .460" bị đọc thành 460 đồng); đã sửa
+  bằng cách cho cân nặng cùng quy tắc trước khi chốt.
+- **Một dòng đọc mất chữ số** (`45 ,000 5, 000` của 45 000): khi đúng **một** dòng sai phép tính, và đổi thành tiền của
+  dòng đó thành số lượng × đơn giá làm tổng các món bằng đúng một số in trên dòng "tổng", nhận cách sửa đó (`repaired`).
+  Trên train sửa 7 hóa đơn (3 có tổng chuẩn, cả 3 đúng; 4 không có tổng chuẩn), validation 1 (không có tổng chuẩn).
+
+| Tổng các món = tổng chuẩn | Bản 3 (8b) | Bản 3c |
+| --- | --- | --- |
+| Train (781) | 554 (70,9 %) | **569 (72,9 %)**: sửa 15, hỏng 0 |
+| Validation (94) | 69 (73,4 %) | **70 (74,5 %)**: sửa 1, hỏng 0 |
+
+`verified` đúng: train 97,2 % (555 / 571), validation 98,5 % (66 / 67). Đọc được ít nhất một món trên train giảm nhẹ
+727 → 725. Tổng tiền với `--total-from-items` trên validation không đổi (80 / 98). Ảnh SunMart (không thuộc MC-OCR, chỉ là
+minh họa): đọc đúng cả 5 món, `verified` 439 850.
+
+File nguồn: `eval_items_v4/items_{train,validation}_v4.json`, `eval_total_v2/decoded_v3_val_total_items.json`.
+
+## 9. Tổng tiền đối chiếu với tổng các món (19/11/2026)
+
 **Vì sao.** Trên train, khi phần mặt hàng (bản 3) báo `verified`, tổng các món bằng tổng chuẩn ở **530 / 547 hóa đơn
 (96,9 %)**; trong khi model chỉ đọc đúng tổng tiền ở 76,5 % hóa đơn validation. Trong 17 ca `verified` sai trên train, 3 ca
 là giảm giá trên tổng đơn và tổng chuẩn vẫn là một số in trên dòng "tổng".

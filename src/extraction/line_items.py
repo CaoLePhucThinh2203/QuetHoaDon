@@ -18,16 +18,17 @@ import unicodedata
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 _SEP = r"\s?[.,]\s?"
+_GROUP_SEP = r"\s?[.,](?:\s?[.,])?\s?"     # OCR repeats the separator of two overlapping crops: "210, ,000"
 _AMOUNT = re.compile(
-    r"(?<![\d])(\d{1,3}(?:" + _SEP + r"\d{3})+|\d{1,3}\s\d00(?!\d))(?:" + _SEP + r"0{2}(?!\d))?")
+    r"(?<![\d])(\d{1,3}(?:" + _GROUP_SEP + r"\d{3})+|\d{1,3}\s\d00(?!\d))(?:" + _SEP + r"0{2}(?!\d))?")
 _DECIMAL_TAIL = re.compile(_SEP + r"0{2}$")
 _BARCODE = re.compile(r"\b\d{6,14}\b")
 _SMALL_INT = re.compile(r"(?<![\d.,])(\d{1,3})(?![\d.,])")
 _NUMBER_TOKEN = re.compile(r"[\d.,]+")
 _DECIMAL_QTY = re.compile(r"(?<![\d.,])(\d{1,2})\s?[.,]\s?(\d{1,3})(?!\d)")
 _PER_KG = re.compile(r"/\s*kg\b", re.IGNORECASE)
-_WEIGHT = re.compile(r"(\d{1,3})\s?[.,]\s?(\d{1,3})\s*kg\b", re.IGNORECASE)
-_WEIGHT_ONLY = re.compile(r"\s*[xX]?\s*\d{1,3}\s?[.,]\s?\d{1,3}\s*kg\s*", re.IGNORECASE)
+_WEIGHT = re.compile(r"(\d{1,3})\s?[.,](?:\s?[.,])?\s?(\d{1,3})\s*kg\b", re.IGNORECASE)
+_WEIGHT_ONLY = re.compile(r"\s*[xX]?\s*\d{1,3}\s?[.,](?:\s?[.,])?\s?\d{1,3}\s*kg\s*", re.IGNORECASE)
 _MIN_SLOPE_WORDS = 10
 _SLOPE_STEP = 0.005                  # slopes tried: -0.2 .. 0.2 (about +-11 degrees)
 _SLOPE_STEPS = 40
@@ -345,8 +346,29 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
         for j in range(end, min(len(lines), end + 8)):
             if _has(lp[j], _END_WORDS):
                 summary += [a[0] for a in parse_amounts(lines[j])]
+    _repair_by_total(items, summary)
     return {"items": items, "summary_amounts": summary, "header_found": header is not None,
             "end_found": end is not None}
+
+
+def _repair_by_total(items: List[Dict[str, Any]], summary: Sequence[int]) -> None:
+    """Fix the amount of the ONE item line that fails quantity x unit price = amount, when quantity x unit price makes
+    the item sum equal to an amount printed on a "total" line ("45 ,000 5, 000": OCR lost the "4" of 45,000).
+    The printed total is the check, so a coincidence would need a misread amount that lands exactly on it."""
+    wanted = {t for t in summary if t}
+    if not items or not wanted:
+        return
+    total = sum(it["amount"] for it in items)
+    gross = sum(it["amount"] for it in items if not it.get("discount"))
+    if total in wanted or gross in wanted:
+        return
+    bad = [it for it in items if not it["line_ok"] and not it.get("discount")]
+    if len(bad) != 1:
+        return
+    it = bad[0]
+    fixed = round(it["quantity"] * it["unit_price"])
+    if fixed > 0 and total - it["amount"] + fixed in wanted:
+        it.update(amount=fixed, line_ok=True, repaired=True)
 
 
 def check_items(items: Sequence[Dict[str, Any]], totals: Sequence[Optional[int]]) -> Dict[str, Any]:

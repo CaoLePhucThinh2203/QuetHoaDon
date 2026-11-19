@@ -31,6 +31,11 @@ class ParseAmountsTest(unittest.TestCase):
         self.assertEqual(self.values("110,000 110, 000"), [110000, 110000])
         self.assertEqual(self.values("645 .000đ"), [645000])
 
+    def test_repeated_separator(self):
+        # OCR of two overlapping crops repeats the separator: "210, ,000", "0, .460 KG" is a weight, not 460
+        self.assertEqual(self.values("210, ,000 0.63 132 ,300"), [210000, 132300])
+        self.assertEqual(self.values("Tổng tiền hàng: 439, ,850"), [439850])
+
     def test_decimal_tail_and_barcode(self):
         self.assertEqual(self.values("5, 800 .00"), [5800])
         self.assertEqual(self.values("8934804025650 36 .500"), [36500])
@@ -152,6 +157,25 @@ class ExtractItemsTest(unittest.TestCase):
         self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"], i["line_ok"]) for i in items],
                          [("Đậu cô ve", 0.39, 25000, 9750, True), ("NẠC HEO XAY", 0.146, 155000, 22630, True),
                           ("Thịt bò thăn", 0.52, 290000, 150800, True), ("Sữa chua", 2, 1500, 3000, True)])
+
+    def test_one_misread_amount_repaired_by_the_printed_total(self):
+        # "45 ,000 5, 000": OCR lost the "4"; 1 x 45,000 makes the items add up to the printed total
+        words, boxes = lay(["Đơn giá SL Thành tiền", "Phí Ship", "12 ,000 12 000", "Trứng gà quê (Chục)",
+                            "45 ,000 5, 000", "THỊT BÒ THĂN (kg)", "290 ,000 0.52 150 ,800",
+                            "Tổng tiền hàng: 207, ,800"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"]) for i in res["items"]],
+                         [("Phí Ship", 1, 12000, 12000), ("Trứng gà quê (Chục)", 1, 45000, 45000),
+                          ("THỊT BÒ THĂN", 0.52, 290000, 150800)])
+        self.assertTrue(res["items"][1]["repaired"])
+        self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
+
+    def test_no_repair_without_a_matching_total_or_with_two_bad_lines(self):
+        words, boxes = lay(["Đơn giá SL Thành tiền", "Trứng", "45 ,000 5, 000", "Tổng tiền hàng: 50,000"])
+        self.assertEqual(extract_items(words, boxes)["items"][0]["amount"], 5000)
+        words, boxes = lay(["Đơn giá SL Thành tiền", "Trứng", "45 ,000 5, 000", "Sữa", "30 ,000 3, 000",
+                            "Tổng tiền hàng: 80,000"])
+        self.assertEqual([i["amount"] for i in extract_items(words, boxes)["items"]], [5000, 3000])
 
     def test_garbled_header_and_invented_total_at_the_top(self):
         # train ...014wbfza: "SL" and "Đơn giá" misread, and the fine-tuned OCR wrote "Tổng thanh toán" above the store name
