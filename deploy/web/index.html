@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quét hóa đơn</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#677084; --line:#e2e5ea; --accent:#1f6feb;
+          --ok:#1a7f37; --warn:#b35900; --bad:#c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1218; --card:#171b23; --text:#e6e9ef; --muted:#9aa3b2; --line:#2a303b; --accent:#58a6ff;
+            --ok:#3fb950; --warn:#e3a33b; --bad:#ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-top:16px; }
+  .drop { display:block; border:2px dashed var(--line); border-radius:12px; padding:24px; text-align:center; cursor:pointer; }
+  .drop.over { border-color:var(--accent); }
+  img.preview { max-width:100%; max-height:420px; display:block; margin:12px auto 0; border-radius:8px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-size:1rem;
+           cursor:pointer; width:100%; margin-top:12px; }
+  button:disabled { opacity:.5; cursor:default; }
+  .total { font-size:1.6rem; font-weight:700; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .scroll { overflow-x:auto; }
+  #status { margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Quét hóa đơn</h1>
+  <div class="muted">Chụp hoặc tải ảnh hóa đơn: hệ thống đọc tổng tiền và từng mặt hàng (tên, số lượng, đơn giá, thành tiền).
+    Ảnh chỉ dùng để đọc, không được lưu lại.</div>
+  <div id="status" class="muted">Đang kiểm tra máy chủ…</div>
+
+  <div class="card">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" capture="environment" hidden>
+      <div><b>Chọn ảnh</b> hoặc kéo thả vào đây</div>
+      <div class="muted">Chụp thẳng, đủ sáng, thấy cả dòng tổng tiền</div>
+      <img id="preview" class="preview" alt="" hidden>
+    </label>
+    <button id="go" disabled>Quét hóa đơn</button>
+  </div>
+
+  <div id="result"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let jpegBase64 = null, fileName = "receipt";
+const vnd = (v) => v == null ? "" : Number(v).toLocaleString("vi-VN") + " đ";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+async function checkHealth() {
+  try {
+    const h = await (await fetch("/api/health")).json();
+    if (h.status === "ready") { $("status").innerHTML = '<span class="ok">● Máy chủ sẵn sàng</span>'; return; }
+    if (h.status === "error") { $("status").innerHTML = '<span class="bad">● Máy chủ lỗi: ' + esc(h.error) + "</span>"; return; }
+    $("status").textContent = "● Máy chủ đang khởi động (có thể mất vài phút sau khi ngủ)…";
+  } catch { $("status").textContent = "● Đang đánh thức máy chủ…"; }
+  setTimeout(checkHealth, 10000);
+}
+checkHealth();
+
+async function loadImage(file) {
+  fileName = (file.name || "receipt").replace(/\.[^.]+$/, "");
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });     // phone photos: apply EXIF rotation
+  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));                 // keep the upload small (< 4 MB)
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const url = canvas.toDataURL("image/jpeg", 0.92);
+  jpegBase64 = url.split(",")[1];
+  $("preview").src = url; $("preview").hidden = false; $("go").disabled = false;
+  $("result").innerHTML = "";
+}
+
+$("file").addEventListener("change", (e) => e.target.files[0] && loadImage(e.target.files[0]));
+const drop = $("drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]); });
+
+$("go").addEventListener("click", async () => {
+  $("go").disabled = true; $("go").textContent = "Đang đọc… (10–60 giây)";
+  $("result").innerHTML = "";
+  try {
+    const r = await fetch("/api/extract", { method: "POST", headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ image: jpegBase64, name: fileName }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || data.error || ("lỗi " + r.status));
+    show(data);
+  } catch (e) {
+    $("result").innerHTML = '<div class="card bad">Không đọc được: ' + esc(e.message) +
+      ". Nếu máy chủ vừa khởi động, hãy thử lại sau ít phút.</div>";
+  } finally { $("go").disabled = false; $("go").textContent = "Quét hóa đơn"; }
+});
+
+function show(d) {
+  if (d.warning === "unreadable") {
+    $("result").innerHTML = '<div class="card warn">⚠️ <b>Ảnh khó đọc.</b> Chữ đọc ra lặp lại bất thường nên kết quả không ' +
+      "đáng tin. Hãy chụp lại thẳng, rõ và đủ sáng.</div>";
+    return;
+  }
+  const f = d.fields || {}, items = d.items || [], check = d.items_check || {};
+  let html = '<div class="card"><div class="muted">Tổng tiền</div>';
+  html += f.TOTAL_COST ? '<div class="total">' + vnd(f.TOTAL_COST.amount_vnd) + "</div>"
+                       : '<div class="warn">Không đọc được tổng tiền</div>';
+  const extra = [["Người bán", f.SELLER && f.SELLER.text], ["Ngày", f.TIMESTAMP && [f.TIMESTAMP.date, f.TIMESTAMP.time].filter(Boolean).join(" ")]]
+    .filter((x) => x[1]).map((x) => x[0] + ": " + esc(x[1])).join(" · ");
+  if (extra) html += '<div class="muted">' + extra + "</div>";
+  html += "</div>";
+  if (items.length) {
+    const msg = check.status === "verified"
+      ? '<span class="ok">✅ Tổng các món (' + vnd(check.sum) + ") khớp dòng tổng trên hóa đơn.</span>"
+      : '<span class="warn">⚠️ Tổng các món (' + vnd(check.sum) + ") không khớp dòng tổng: có thể thiếu hoặc đọc sai một món.</span>";
+    html += '<div class="card"><div>' + msg + '</div><div class="scroll"><table><tr><th>#</th><th>Tên hàng</th>' +
+      '<th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th><th></th></tr>';
+    items.forEach((it, i) => {
+      const ok = it.quantity != null && it.unit_price != null && Math.abs(it.quantity * it.unit_price - it.amount) < 1;
+      html += "<tr><td>" + (i + 1) + "</td><td>" + esc(it.name) + '</td><td class="num">' + esc(it.quantity) +
+        '</td><td class="num">' + vnd(it.unit_price) + '</td><td class="num">' + vnd(it.amount) + "</td><td>" +
+        (ok ? '<span class="ok">✓</span>' : '<span class="warn">⚠</span>') + "</td></tr>";
+    });
+    html += "</table></div></div>";
+  } else {
+    html += '<div class="card muted">Không đọc được dòng mặt hàng nào.</div>';
+  }
+  html += '<div class="muted">Xử lý trong ' + esc(d.seconds) + " giây. Hãy kiểm tra lại kết quả trước khi dùng.</div>";
+  $("result").innerHTML = html;
+}
+</script>
+</body>
+</html>
