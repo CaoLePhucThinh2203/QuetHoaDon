@@ -112,6 +112,8 @@ def item_rows(compact: Dict[str, Any]) -> List[List[Any]]:
 def items_summary(compact: Dict[str, Any]) -> str:
     """One line (Markdown) on whether the item amounts add up to the total printed on the receipt."""
     check = compact.get("items_check")
+    if compact.get("warning") == "unreadable":
+        return "⚠️ Ảnh khó đọc: không hiện mặt hàng để tránh số sai."
     if not compact.get("items") or not check:
         return "Không đọc được dòng mặt hàng nào."
     n = len(compact["items"])

@@ -44,6 +44,23 @@ def cmd_build(args: argparse.Namespace) -> None:
     print(json.dumps(report, indent=2, ensure_ascii=False))
 
 
+def cmd_numbers(args: argparse.Namespace) -> None:
+    from vietocr.tool.config import Cfg
+    from src.recognition.number_pairs import build_number_set
+    from src.recognition.synth_numbers import build_synth_set, find_fonts
+    vocab = Cfg.load_config_from_name("vgg_transformer")["vocab"]
+    report = {}
+    if args.ocr_dir:
+        report["verified"] = build_number_set(args.ocr_dir, args.image_dir, args.split_manifest, ["train", "validation"],
+                                              args.out_numbers, vocab)
+    if args.synth_train or args.synth_val:
+        fonts = find_fonts()
+        report["fonts"] = fonts
+        report["synth"] = [build_synth_set(args.out_synth, "train", args.synth_train, args.seed, fonts, vocab),
+                           build_synth_set(args.out_synth, "validation", args.synth_val, args.seed + 1, fonts, vocab)]
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+
 def _strip(ev: dict) -> dict:
     return {k: v for k, v in ev.items() if k != "hyps"}
 
@@ -59,6 +76,15 @@ def cmd_train(args: argparse.Namespace) -> None:
     if args.kinds != "line,region":
         keep = set(args.kinds.split(","))
         train_rows = [r for r in train_rows if r["kind"] in keep]
+    for spec in args.extra_pairs:                 # more training pairs: folder[:kind,kind]
+        folder, sep, kinds = spec.rpartition(":")
+        if not sep or "/" in kinds or "\\" in kinds:    # no kind list ("C:/data" is a Windows path, not folder:kind)
+            folder, kinds = spec, ""
+        extra = load_pairs(os.path.join(folder, "train"))
+        if kinds:
+            extra = [r for r in extra if r["kind"] in set(kinds.split(","))]
+        print(f"[ft] + {len(extra)} pairs from {folder} ({kinds or 'all kinds'})", flush=True)
+        train_rows += extra
     if args.max_train:
         train_rows = train_rows[:args.max_train]
     os.makedirs(args.out, exist_ok=True)
@@ -133,9 +159,20 @@ def main() -> None:
                    help="start from this fine-tuned state dict (round 2); the 'pretrained' columns of the report are then "
                         "this starting model, so the gate measures the gain of this round only")
     t.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
+    t.add_argument("--extra-pairs", action="append", default=[],
+                   help="more training pairs, folder[:kind,kind] (repeatable), e.g. synth_pairs or number_pairs:number")
+    n = sub.add_parser("numbers", help="write digit pairs: verified item numbers and / or synthetic numbers")
+    n.add_argument("--ocr-dir", default="", help="OCR JSON folder of a pipeline run (for verified item numbers)")
+    n.add_argument("--image-dir", default="", help="processed images of the same run")
+    n.add_argument("--split-manifest", default="")
+    n.add_argument("--out-numbers", default="number_pairs")
+    n.add_argument("--out-synth", default="synth_pairs")
+    n.add_argument("--synth-train", type=int, default=0, help="number of synthetic training crops")
+    n.add_argument("--synth-val", type=int, default=0, help="number of synthetic validation crops")
+    n.add_argument("--seed", type=int, default=42)
 
     args = ap.parse_args()
-    cmd_build(args) if args.cmd == "build" else cmd_train(args)
+    {"build": cmd_build, "train": cmd_train, "numbers": cmd_numbers}[args.cmd](args)
 
 
 if __name__ == "__main__":

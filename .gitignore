@@ -99,3 +99,9 @@ pipeline_results/
 outputs/
 failed.json
 *.tmp
+
+# Downloaded Kaggle / Drive result folders (scores and probabilities, kept outside Git)
+phase1_eval/
+kaggle/
+final_eval/
+eval/
