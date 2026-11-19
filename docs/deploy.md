@@ -16,22 +16,22 @@ Cần: tài khoản Hugging Face, tài khoản Vercel (đăng nhập bằng GitH
 1. huggingface.co → **New model** → tên `quethoadon-weights`, chọn **Private** → Create.
 2. huggingface.co/settings/tokens → **Create new token**: một token **Write** (để upload) và một token **Read** (cho
    Space và Vercel). Không gửi token cho ai, không commit vào Git.
-3. Trong PowerShell, ở thư mục dự án (thay `<user>` bằng tên tài khoản):
+3. Trong PowerShell, ở thư mục dự án (thay `<user>` bằng tên tài khoản). `huggingface_hub` bản mới dùng lệnh `hf` thay cho `huggingface-cli`:
 
 ```powershell
 pip install -U huggingface_hub
 ```
 
 ```powershell
-huggingface-cli login
+hf auth login
 ```
 
 ```powershell
-huggingface-cli upload <user>/quethoadon-weights kaggle/m1b_v3_checkpoint/best m1b_v3_checkpoint/best
+hf upload <user>/quethoadon-weights kaggle/m1b_v3_checkpoint/best m1b_v3_checkpoint/best
 ```
 
 ```powershell
-huggingface-cli upload <user>/quethoadon-weights kaggle/phase1_eval/vietocr_ft/vietocr_finetuned.pth vietocr_finetuned.pth
+hf upload <user>/quethoadon-weights kaggle/phase1_eval/vietocr_ft/vietocr_finetuned.pth vietocr_finetuned.pth
 ```
 
 Repo phải có đúng: `m1b_v3_checkpoint/best/config.json`, `m1b_v3_checkpoint/best/model.safetensors`,
