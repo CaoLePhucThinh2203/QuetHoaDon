@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+transformers==5.20.2
+sentencepiece
+numpy<3
+opencv-python-headless
+pillow
+pyyaml
+scikit-learn
+tqdm
+pandas
+fastapi
+uvicorn
+python-multipart
+huggingface_hub
+gdown
+einops
+prefetch_generator
+albumentations
+lmdb
+ninja
