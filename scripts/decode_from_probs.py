@@ -26,6 +26,7 @@ from src.evaluation.probs_io import load_probs  # noqa: E402
 from src.extraction.datetime_rules import improve_timestamps  # noqa: E402
 from src.extraction.field_cleanup import clean_predictions  # noqa: E402
 from src.extraction.total_check import totals_from_items  # noqa: E402
+from src.recognition.quality import blank_unreadable  # noqa: E402
 from src.evaluation.reproduction import (compare_predictions, compare_scores, reference_predictions,  # noqa: E402
                                          score_predictions)
 from src.training.data import load_jsonl  # noqa: E402
@@ -46,10 +47,14 @@ def main() -> None:
     ap.add_argument("--total-from-items", action="store_true",
                     help="use the verified item sum when the total is not printed on a total line "
                          "(src/extraction/total_check.py)")
+    ap.add_argument("--quality-check", action="store_true",
+                    help="no prediction for receipts whose OCR repeats invented phrases (src/recognition/quality.py), "
+                         "as the app answers 'unreadable'; their annotated fields count as not read")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-    if (args.datetime or args.cleanup or args.total_from_items) and args.reference:
-        sys.exit("--reference checks the Week-4 decoding; run it without --datetime / --cleanup / --total-from-items.")
+    if (args.datetime or args.cleanup or args.total_from_items or args.quality_check) and args.reference:
+        sys.exit("--reference checks the Week-4 decoding; run it without --datetime / --cleanup / --total-from-items "
+                 "/ --quality-check.")
     if args.split == "test" and not args.allow_test:
         sys.exit("The test split is only read for the final evaluation. Re-run with --allow-test.")
 
@@ -62,11 +67,15 @@ def main() -> None:
     totals_changed = None
     if args.total_from_items:
         preds, totals_changed = totals_from_items(records, preds)
+    unreadable = None
+    if args.quality_check:
+        preds, unreadable = blank_unreadable(records, preds)
     gts = gold_fields(records)
     lenient = score_predictions(records, preds)
     app = app_scores(gts, preds)
     report = {"split": args.split, "receipts": len(records), "datetime_rules": args.datetime, "field_cleanup": args.cleanup,
-              "total_from_items": args.total_from_items, "totals_changed": totals_changed, "lenient": lenient,
+              "total_from_items": args.total_from_items, "totals_changed": totals_changed,
+              "quality_check": args.quality_check, "unreadable": unreadable, "lenient": lenient,
               "app": {k: v for k, v in app.items() if k != "per_receipt"},
               "error_causes": error_causes(records, merged, preds, row_limit=100000),
               "per_receipt_soft_rules": [{"img_id": r["img_id"], "file_id": r.get("file_id"), "pred": preds[r["img_id"]]}
@@ -89,6 +98,10 @@ def main() -> None:
           f"all correct {lenient['receipts']['all_fields_correct']}")
     print("lenient field F1:", {f: round(lenient["fields"][f], 4) for f in FIELDS})
     print(format_app_table(app, "Strict reading accuracy"))
+    if totals_changed is not None:
+        print("totals taken from the items:", totals_changed)
+    if unreadable is not None:
+        print(f"flagged unreadable (no prediction): {len(unreadable)}", unreadable)
     print("error causes:", report["error_causes"]["total"])
     if passed is not None:
         print("reproduction:", "PASS" if passed else "FAIL", "| field mismatches:",
