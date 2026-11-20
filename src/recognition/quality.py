@@ -11,7 +11,7 @@ high (median 0.73). The threshold 0.3 was chosen on train: it flags 48 of the 52
 receipt. Pure Python.
 """
 from collections import Counter
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 REPEAT_THRESHOLD = 0.3
 MIN_WORDS = 15
@@ -34,3 +34,17 @@ def readability(words: Sequence[str], threshold: float = REPEAT_THRESHOLD) -> Di
     """``{"repeated_share", "unreadable"}``; too few words to judge counts as readable."""
     share = repeated_share(words)
     return {"repeated_share": round(share, 3), "unreadable": len(words) >= MIN_WORDS and share >= threshold}
+
+
+def blank_unreadable(records: Sequence[Dict[str, Any]], preds: Dict[str, Dict[str, Optional[str]]]
+                     ) -> Tuple[Dict[str, Dict[str, Optional[str]]], List[str]]:
+    """Offline counterpart of ``ReceiptExtractor(quality_check=True)`` for scoring: a flagged receipt gets no prediction
+    at all (the app answers "unreadable, take another photo"), so every annotated field of it counts as not read.
+
+    Returns new predictions and the flagged ``img_id`` values; the input is not modified.
+    """
+    out = {k: dict(v) for k, v in preds.items()}
+    flagged = [r["img_id"] for r in records if readability(r["words"])["unreadable"]]
+    for img_id in flagged:
+        out[img_id] = {}
+    return out, flagged
