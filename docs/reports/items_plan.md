@@ -4,6 +4,10 @@
 TIMESTAMP, TOTAL_COST) **giữ nguyên**: các con số test bên dưới là kết quả chính của đề tài và không được làm thay đổi.
 Phần mặt hàng là **một module mới chạy sau**, có tập đánh giá và số liệu riêng.*
 
+> **Bản luật nào, số nào (cập nhật 22/11/2026).** Mục 1–6 là số của **luật gốc (bản 1)** đã đóng băng 17/11; mục 7–9 là bản 2,
+> bản 3 và tổng tiền từ các món, chấm trên train và validation. Test được chấm hai lần: luật bản 1 ngày 17/11 (47,4 %) và luật
+> bản 3 ngày 22/11 (**74,2 %**, 72 / 97, mục 10). Bản 3 là luật trên `main` và trong web.
+
 ## 1. Mốc hiện tại (đã kiểm chứng trên Kaggle)
 
 Tập test MC-OCR, 116 hóa đơn, chấm **một lần** (`eval/decoded_v3_test.json`, `eval/decoded_v2_test.json`).
@@ -297,3 +301,21 @@ khách đưa (150 000 → 148 000), chọn một món (3 000 → 322 800), hoặ
 
 File nguồn: `eval_total_v1/decoded_v3_val_final.json`, `eval_total_v1/decoded_v3_val_total_items.json`
 (`decode_from_probs.py --probs eval/m1b_v3_val_probs.npz --datetime --cleanup [--total-from-items]`).
+
+## 10. Chấm test lần hai, luật bản 3 (22/11/2026)
+
+Quy tắc đặt trước: [`final_test_protocol.md`](final_test_protocol.md). Notebook 11, mã nguồn `main` commit `d3dd2d8`, 97 hóa
+đơn test có tổng chuẩn (3 hóa đơn bị chặn khó đọc không hiện món):
+
+| | Luật bản 1 (17/11) | Luật bản 3 (22/11) |
+| --- | --- | --- |
+| Đọc được ít nhất một món | 78 / 97 (80,4 %) | 90 / 97 (92,8 %) [85,8; 96,5] |
+| Tổng các món = tổng chuẩn | 46 / 97 (47,4 %) | **72 / 97 (74,2 %)** [64,7; 81,9] |
+| Từ hai món trở lên | 58 / 97 | 61 / 97 |
+| `verified` | 44 / 97 | 72 / 97 |
+| Trong số `verified`, bằng tổng chuẩn | 42 / 44 (95,5 %) | 69 / 72 (95,8 %) [88,5; 98,6] |
+| Dòng có SL × đơn giá = thành tiền | 204 / 222 | 255 / 279 (91,4 %) |
+
+Validation cho 74,5 % (mục 8c) và test 74,2 %: không có khoảng cách giữa hai tập. Tên hàng vẫn không chấm được. Tổng tiền
+với `total_from_items` trên test: 71 → 80 / 98 (mục 9 trên validation: 75 → 80 / 98). File nguồn: `items_product_test.json`,
+`paired_product_test.json` (`final_test.zip`).

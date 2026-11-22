@@ -82,7 +82,7 @@ Do not choose anything with the test split; seeds only report the spread of an a
 
 ## Final configuration (Week 5): fine-tuned VietOCR, M1b v3, rules, item lines
 
-Every choice below was made on validation; the test split was scored once on 17/11/2026 with the frozen configuration.
+Every choice below was made on validation; the test split was scored on 17/11/2026 with the frozen configuration and once more on 22/11/2026 with the product configuration (frozen + item rules of 19/11 + `total_from_items` + `quality_check`, same model weights; commands in `notebooks/11_final_test_product_kaggle.ipynb`, rules in `docs/reports/final_test_protocol.md`).
 `notebooks/06_phase1_ocr_kaggle.ipynb` holds the training run, `notebooks/07_final_evaluation_kaggle.ipynb` re-computes
 every reported number with checks that print KHỚP / LỆCH.
 

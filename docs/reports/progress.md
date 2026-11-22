@@ -1,8 +1,14 @@
-# Tiến độ sau báo cáo cuối (18–19/11/2026)
+# Tiến độ sau báo cáo cuối (18–22/11/2026)
+
+**Trạng thái 22/11/2026.** Công việc 18–19/11 (nhánh `thinh-dev`, đã merge) cải thiện tổng tiền và mặt hàng; cấu hình đó là
+**cấu hình sản phẩm** (bản chốt đang chạy trên web). Ngày 22/11 nó được chấm trên tập test một lần theo quy tắc viết trước
+([`final_test_protocol.md`](final_test_protocol.md), mục 7): tổng tiền đúng 71 → 80 / 98 (p = 0,0039), cả bốn trường 18,4 % →
+21,1 % (p = 0,25), tổng các món bằng tổng chuẩn 47,4 % → 74,2 %, 5 ảnh khó đọc bị chặn mà không mất kết quả đúng nào. Báo cáo
+cuối: [`week5_final_report.md`](week5_final_report.md). Phần dưới là nhật ký 18–19/11 (số validation, luật viết trên train).
 
 Nhánh `thinh-dev` (gộp mọi việc từ 18/11). Ưu tiên: **tổng tiền, tên hàng, đơn giá, số lượng** (người bán, địa chỉ, ngày giờ
-không cải thiện thêm). Luật viết trên **train**, validation chấm một lần mỗi vòng, **test không chấm lại**: mọi số trong báo
-cáo cuối giữ nguyên. Chi tiết và file nguồn: [`items_plan.md`](items_plan.md) mục 7–9.
+không cải thiện thêm). Luật viết trên **train**, validation chấm một lần mỗi vòng, test **không chấm lại trong giai đoạn này**
+(lần chấm test thứ hai là ngày 22/11, xem trên). Chi tiết và file nguồn: [`items_plan.md`](items_plan.md) mục 7–10.
 
 ## Đã làm
 
@@ -27,15 +33,16 @@ Train, tổng các món = tổng chuẩn: 56,9 % → 72,9 %. Ảnh SunMart chụ
 
 ## Cần biết
 
-- Notebook 07 cell 7 sẽ báo LỆCH (kiểm tra số test của luật cũ, 46 / 97); báo cáo cuối vẫn đúng cho cấu hình đã nộp.
-- Web demo (notebook 08) chưa bật `--total-from-items`; muốn bật thì thêm `total_from_items=True` ở cell 4.
+- Notebook 07 cell 7 sẽ báo LỆCH trên `main` (kiểm tra số test của luật cũ, 46 / 97); vì vậy notebook 07 được ghim vào commit
+  `413599d`, nơi nó đã chạy. Báo cáo cuối vẫn đúng cho cấu hình đóng băng.
+- Web demo (notebook 08) và web triển khai (`deploy/`) đã bật `total_from_items` và `quality_check` (cấu hình sản phẩm).
 - Số lượng hàng cân là số thập phân (0.322).
 - VietOCR tinh chỉnh "bịa chữ" ("Tổng thanh toán", "104 Trần Phú" lặp lại) ở khoảng 5 % ảnh không đọc được
   (train 53, validation 5, test 7): cần bước báo "ảnh không đọc được" thay vì đưa ra số bịa.
 
 ## Việc tiếp theo
 
-1. Nhận ra ảnh không đọc được hoặc bị xoay (cần Kaggle).
+1. ~~Nhận ra ảnh không đọc được~~ (xong: `quality_check`; ảnh bị xoay chưa xử lý).
 2. Gõ tay tên hàng cho 30–50 hóa đơn để đo được độ đúng của tên hàng.
 3. Phần lớn lỗi mặt hàng còn lại do OCR đọc sai số: cần OCR theo dòng (kế hoạch Tuần 5, mục 1.4).
 

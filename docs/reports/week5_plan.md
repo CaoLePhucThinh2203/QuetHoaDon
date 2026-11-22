@@ -4,7 +4,7 @@
 xác** hơn hạn chót: model phải đọc hóa đơn chuẩn nhất có thể, vì sau môn học có thể đưa vào một ứng dụng tải hóa đơn lên.
 Các yêu cầu Tuần 5 của giảng viên vẫn giữ (mục 8).*
 
-## 0. Trạng thái ngày 18/11/2026
+## 0. Trạng thái (cập nhật 22/11/2026)
 
 | Giai đoạn | Kết quả |
 | --- | --- |
@@ -14,9 +14,12 @@ Các yêu cầu Tuần 5 của giảng viên vẫn giữ (mục 8).*
 | 3. Hậu xử lý | 3.2, 3.3 xong (luật ngày giờ, làm sạch SELLER / ADDRESS); 3.1 thử "tiền khách đưa − tiền thối", kết quả âm nên bỏ; 3.4 cố ý không làm (học thuộc tên cửa hàng của train) |
 | 4. Tập ảnh thật R | Không làm: nhóm không gán nhãn tay được; ghi vào hạn chế |
 | 5. Chốt và bàn giao | 5.1 PASS, 5.2 test chấm một lần (17/11), 5.3 độ trễ đo lại sau khi sửa lỗi, 5.7 tài liệu học; 5.4 và 5.6 qua notebook 07; 5.5 báo cáo cuối `week5_final_report.md` |
-| Mở rộng mặt hàng | Xong bằng luật, chấm bằng tổng tiền chuẩn (`items_plan.md`) |
+| Mở rộng mặt hàng | Xong bằng luật, chấm bằng tổng tiền chuẩn (`items_plan.md`); luật bản 3 (19/11): test 47,4 % → 74,2 % |
+| Sau 18/11 (`progress.md`) | Luật mặt hàng v2–v3; tổng tiền từ các món (test 71 → 80 / 98); chặn ảnh khó đọc (5 / 116 test, không mất kết quả đúng nào); OCR đọc theo đoạn (âm) và tinh chỉnh chữ số (âm) |
+| Cấu hình sản phẩm và chấm test lần hai (22/11) | Cùng model, thêm luật mới; quy tắc viết trước (`final_test_protocol.md`), notebook 11 với hai cổng; cả bốn trường 18,4 % → 21,1 % (p = 0,25), tổng tiền p = 0,0039 |
+| Web | API trên Hugging Face Space + trang Vercel (`deploy/`, `docs/deploy.md`), Gradio trên Kaggle (notebook 08); chạy cấu hình sản phẩm |
 
-Quyết định ở mục 9: (1) test chấm lại một lần cho cấu hình cuối và ghi rõ; (2) không làm tập R; (3) làm xong trước khi nộp.
+Quyết định ở mục 9: (1) test chấm lại một lần cho cấu hình cuối và ghi rõ (đã làm ngày 22/11 cho cấu hình sản phẩm); (2) không làm tập R; (3) làm xong trước khi nộp.
 
 ## 1. Mốc xuất phát (đã kiểm chứng)
 
