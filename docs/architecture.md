@@ -85,7 +85,17 @@ variant (M1a, head only) is kept as an ablation. See `docs/reports/project_plan.
   ("40 000/KG X 0,322 KG", quantity 0.322) with the amount from the next line, and subtracts discount lines. `check_items` marks a receipt `verified` when the item sum
   equals the total printed on it. `compact_result()` returns only the fields that were read.
 - **Total from items (optional).** `src/extraction/total_check.py`: with `total_from_items=True`, a verified item sum
-  replaces the predicted total when that total is not printed on any "total" line (or is missing). Off by default.
+  replaces the predicted total when that total is not printed on any "total" line (or is missing). Off by default; on in
+  the product configuration.
+- **Unreadable photos (optional).** `src/recognition/quality.py`: with `quality_check=True`, a receipt whose OCR repeats
+  three-word phrases (the fine-tuned VietOCR invents text on photos it cannot read) is answered with
+  `"warning": "unreadable"` and no fields or items. Off by default; on in the product configuration.
+- **Optional OCR variant.** `src/detection/line_merge.py` (`detection.merge_lines`, off): reads touching CRAFT boxes of one
+  line as one segment; measured in notebook 09, no gain for the items and 48 % slower, so it is not used.
+- **Two configurations.** *Frozen* (17/11): fine-tuned VietOCR + nested-box filter 0.5 + M1b v3 + date / time rules + SELLER /
+  ADDRESS clean-up. *Product* (22/11, what the web demo runs): the frozen one + the item rules of 19/11 + `total_from_items`
+  + `quality_check`; same model weights. `ReceiptExtractor.from_checkpoint(..., postprocess=True, items=True,
+  total_from_items=True, quality_check=True, ocr_weights=..., nested_threshold=0.5)`.
 
 ## 6. Limitations
 

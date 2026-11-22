@@ -76,10 +76,14 @@ Mở trang Space: ô **health** phải ra `"status": "ready"` (bấm **Kiểm tr
 
 ## Lưu ý
 
+- **Cấu hình model:** cấu hình sản phẩm (`total_from_items=True`, `quality_check=True`), đã chấm trên tập test ngày 22/11/2026
+  (`final_test_protocol.md`): tổng tiền đúng 81,6 %, cả bốn trường 21,1 %, mặt hàng đúng tổng 74,2 %. Ảnh khó đọc trả
+  `"warning": "unreadable"`; trang web nên hiện "chụp lại".
+- **Chưa ghi trong tài liệu:** địa chỉ web đang chạy và tốc độ thật trên Space (cần bổ sung khi có).
 - **Tốc độ:** CPU miễn phí, ước chừng 10–30 giây mỗi ảnh (chưa đo trên Space). `deploy/web/vercel.json` cho hàm
   `/api/extract` tối đa 60 giây; ảnh lâu hơn sẽ lỗi hết giờ, khi đó thử lại hoặc nâng phần cứng Space.
 - **Space ngủ** khi lâu không dùng: khi thức dậy phải cài lại detectron2 (vài phút nếu đã lưu bản biên dịch nhờ token Write, 10–20 phút nếu chưa) rồi nạp model. Trang web tự kiểm tra
   `/api/health` mỗi 10 giây và báo "máy chủ đang khởi động".
-- **Đổi code:** push lên nhánh `thinh-dev` rồi vào Space → **Settings → Restart Space** (`app.py` clone lại code mỗi lần khởi động).
+- **Đổi code:** push lên nhánh `thinh-dev` (hiện Space và notebook 08, 09, 10 đều lấy code từ nhánh này, nên chưa xóa được; khi chuyển sang `main` thì đổi `BRANCH` ở các chỗ đó) rồi vào Space → **Settings → Restart Space** (`app.py` clone lại code mỗi lần khởi động).
 - **Một ảnh mỗi lần:** API xử lý tuần tự; nhiều người dùng cùng lúc sẽ phải chờ.
 - **Riêng tư:** không lưu ảnh; vẫn nên giữ Space private và `API_KEY`, vì ảnh hóa đơn có thông tin cá nhân.

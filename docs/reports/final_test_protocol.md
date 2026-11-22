@@ -71,4 +71,48 @@ Kiểm chứng trên validation (21/11, Mac, không cần GPU): chấm offline c
 
 ## 7. Kết quả
 
-*Điền sau khi chạy (ngày, commit, link notebook có output, bảng số). Không sửa các mục 1–6.*
+*Chạy ngày 22/11/2026 trên Kaggle (GPU T4), notebook 11, mã nguồn `main` commit `d3dd2d8`. Một lần chạy; mục 1–6 không bị sửa.*
+
+**Hai cổng qua.** Cổng 1: tính lại cấu hình đóng băng trên test ra đúng 77 / 29 / 89 / 61 / 71 / 21 (KHỚP). Cổng 2:
+`verify_product_path.py` trên test, 116 / 116 hóa đơn giống hệt đầu ra của app, 0 khác biệt, PASS.
+
+**Đúng tuyệt đối trên test (cấu hình sản phẩm; 5 ảnh bị chặn tính là không đọc được):**
+
+| Trường | Đóng băng (17/11) | Sản phẩm | Chênh ghép cặp [95 %] | Chỉ đóng băng đúng | Chỉ sản phẩm đúng | McNemar p |
+| --- | --- | --- | --- | --- | --- | --- |
+| SELLER | 77 / 107 (72,0 %) | 77 / 107 (72,0 %) | +0,0 điểm | 0 | 0 | 1,000 |
+| ADDRESS | 29 / 106 (27,4 %) | 29 / 106 (27,4 %) | +0,0 | 0 | 0 | 1,000 |
+| Ngày | 89 / 106 (84,0 %) | 89 / 106 (84,0 %) | | | | |
+| Giờ hh:mm | 61 / 85 (71,8 %) | 61 / 85 (71,8 %) | | | | |
+| Ngày và giờ cùng đúng | 77 / 106 | 77 / 106 | +0,0 | 0 | 0 | 1,000 |
+| **Tổng tiền** | 71 / 98 (72,4 %) | **80 / 98 (81,6 %)** [72,8; 88,1] | **+9,2 [+4,1; +15,3]** | 0 | 9 | **0,0039** |
+| **Cả bốn trường** | 21 / 114 (18,4 %) | **24 / 114 (21,1 %)** [14,6; 29,4] | +2,6 [+0,0; +6,1] | 0 | 3 | 0,25 |
+
+- **Tổng tiền:** 11 hóa đơn được lấy tổng từ các món; 9 trong số đó chuyển từ sai sang đúng, không hóa đơn nào chuyển từ đúng
+  sang sai. Cải thiện có ý nghĩa thống kê.
+- **Cả bốn trường:** +3 hóa đơn, chưa đủ bằng chứng (p = 0,25).
+- **Ảnh bị chặn khó đọc:** 5 / 116 (`145013kcxya`, `145014ebrwa`, `145014ecchz`, `145014exzpp`, `145014motth`). Ở **mọi** trường,
+  số hóa đơn "chỉ đóng băng đúng" là 0: việc chặn không làm mất một kết quả đúng nào trên test. Loại 5 ảnh này ra, độ đúng
+  là SELLER 77 / 103, ADDRESS 29 / 103, ngày 89 / 104, tổng tiền 80 / 95, cả bốn trường 24 / 110.
+- Nguyên nhân sai (đóng băng → sản phẩm): chữ OCR 52 → 52, mô hình gán sai 31 → 25, mô hình bỏ sót 5 → 2.
+
+**Mặt hàng (test, 97 hóa đơn có tổng chuẩn; luật bản 3, 3 hóa đơn bị chặn không hiện món):**
+
+| | Luật đóng băng (17/11) | Luật bản 3 (sản phẩm) |
+| --- | --- | --- |
+| Đọc được ít nhất một món | 78 / 97 (80,4 %) | **90 / 97 (92,8 %)** [85,8; 96,5] |
+| Tổng các món = tổng chuẩn | 46 / 97 (47,4 %) | **72 / 97 (74,2 %)** [64,7; 81,9] |
+| Từ hai món trở lên | 58 / 97 | 61 / 97 |
+| `verified` (tổng các món = tổng in) | 44 / 97 | 72 / 97 (74,2 %) |
+| Trong số `verified`, bằng tổng chuẩn | 42 / 44 (95,5 %) | **69 / 72 (95,8 %)** [88,5; 98,6] |
+| Dòng có SL × đơn giá = thành tiền | 204 / 222 (91,9 %) | 255 / 279 (91,4 %) |
+
+**So với validation:** tổng tiền validation 80 / 98 (81,6 %) và test 80 / 98 (81,6 %); mặt hàng validation 74,5 % và test
+74,2 %. Không có khoảng cách lạc quan giữa validation và test cho hai cải tiến này.
+
+**Hạn chế phải ghi cùng:** đây là lần thứ hai tập test được dùng; luật mới được chọn trên train và validation (validation
+đã được chấm nhiều vòng). Tên hàng vẫn không chấm được. SELLER, ADDRESS, ngày và giờ **không đổi** so với cấu hình đóng băng:
+cải tiến nằm ở tổng tiền và mặt hàng.
+
+Nguồn: `final_test.zip` (`eval/decoded_product_test.json`, `paired_product_test.json`, `items_product_test.json`,
+`verify_product_test.json`, `final_test_summary.json`) và notebook 11 có output.
