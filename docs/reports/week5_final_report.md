@@ -136,6 +136,9 @@ Test, 97 hóa đơn có tổng chuẩn:
 
 Luật bản 3 (`src/extraction/line_items.py`) gom dòng theo độ nghiêng ảnh, ghép số OCR bị tách, đọc hàng cân theo kg (số lượng
 thập phân), nhận tiêu đề cột bị đọc sai và sửa một dòng nhờ tổng in trên hóa đơn. Validation: 62,8 % → 74,5 % (test 74,2 %).
+**Ghi chú 23/11:** sau lần chấm test thứ hai luật được sửa thêm thành bản 4 (`line_items.py` trên `main`; rà 300 hóa đơn
+train bằng subagent, xem [`review_train_300.md`](review_train_300.md)): tổng các món đúng train 73,2 % → 74,1 %, validation
+74,5 % → 75,5 %. **Test chưa chấm lại**, nên mọi số mặt hàng và tổng tiền trên test ở trong báo cáo này là của bản 3.
 Khi `verified` thì đúng 95,8 %: người dùng có thể tin dòng `verified`. 3 hóa đơn bị chặn khó đọc không hiện món. Tên hàng không
 chấm được.
 
@@ -171,7 +174,9 @@ M1b v3 có 368,66 triệu tham số (1476 MB). Các số trên đo trên GPU (v�
   chưa nhìn nào để đo thêm.
 - **Nhãn gốc không nhất quán:** ví dụ "p.cẩm" và "p. cẩm", có nhãn gõ sai; một phần lỗi không thể sửa.
 - **Chỉ đo trên MC-OCR:** chủ yếu chuỗi siêu thị, ảnh in rõ; chưa có tập ảnh chụp thật để đo sai lệch miền.
-- **Mặt hàng:** tên hàng chưa có số đo; số món đọc đúng tổng mới 74,2 % trên test; luật chưa phủ giảm giá nhiều tầng và bảng
+- **Luật mặt hàng đổi sau lần chấm test:** bản 4 (23/11) chỉ đo trên train và validation; số test mặt hàng và tổng tiền
+  (74,2 %, 80 / 98) là của bản 3 (commit `d3dd2d8`). Chạy lại notebook 11 trên mã hiện tại có thể cho số khác, chưa kiểm chứng.
+- **Mặt hàng:** tên hàng chưa có số đo; số món đọc đúng tổng mới 74,2 % trên test (bản 3); luật chưa phủ giảm giá nhiều tầng và bảng
   không có tiêu đề; phần lớn lỗi còn lại do OCR đọc sai số.
 - **Ảnh khó đọc:** khoảng 5 % ảnh (train 53 / 922, validation 5 / 115, test 5 / 116) VietOCR tinh chỉnh viết ra cụm từ bịa
   ("Tổng thanh toán", "104 Trần Phú") thay cho chữ thật. Cấu hình sản phẩm chặn các ảnh này và yêu cầu chụp lại, nhưng ngưỡng
@@ -197,7 +202,7 @@ M1b v3 có 368,66 triệu tham số (1476 MB). Các số trên đo trên GPU (v�
 | Mục | Trạng thái |
 | --- | --- |
 | Mã nguồn | `src/` theo từng khâu; script trong `scripts/`; notebook 01–11 (08 là web demo, 11 là lần chấm test thứ hai) |
-| Kiểm thử | 337 unit test, chạy không cần GPU (`python -m unittest discover -s tests -t .`), CI chạy trên mỗi PR |
+| Kiểm thử | 342 hàm test, chạy không cần GPU (`python -m unittest discover -s tests -t .`), CI chạy trên mỗi PR |
 | Tài liệu | `README.md`, `docs/architecture.md`, `docs/dataset.md`, `docs/training.md`, `docs/reports/` |
 | Tái lập | Phiên bản cố định (Python 3.13, torch 2.11, transformers 5.20). Notebook 07 tính lại số của cấu hình đóng băng và in KHỚP / LỆCH, ghim vào commit `413599d` (luật mặt hàng trên `main` đã đổi sau đó, nên trên `main` cell 7 sẽ LỆCH); notebook 11 chạy trên `main` và tính lại cả hai cấu hình, có hai cổng tự kiểm |
 | Trọng số | Không lưu trong repo (1,4 GB); nhóm giữ trong dataset Kaggle, Google Drive và một repo riêng tư trên Hugging Face (cho web); có lệnh huấn luyện lại |

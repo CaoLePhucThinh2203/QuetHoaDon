@@ -124,7 +124,8 @@ luật bản 3 (sản phẩm) 92,8 % và **74,2 % (72/97)**.
 
 **Giới hạn phải nói thẳng khi trình bày:** ADDRESS đúng mới 27,4 %; cả bốn trường đúng 21,1 % (sản phẩm; 18,4 % đóng băng); nhãn
 gốc có lỗi và mâu thuẫn; tên hàng chưa có số đo; chưa thử trên ảnh chụp thật ngoài MC-OCR; tập test đã dùng hai lần; tốc độ
-của web trên Hugging Face Space (CPU) chưa đo.
+của web trên Hugging Face Space (CPU) chưa đo; luật mặt hàng được sửa thêm ngày 23/11 (bản 4: train 74,1 %, validation
+75,5 %) nhưng test chưa chấm lại, nên số test mặt hàng (74,2 %) và tổng tiền (80 / 98) là của bản 3.
 
 **Câu hỏi có thể hỏi:** Vì sao tổng tiền cải thiện nhưng p chỉ 0,065 ở lần chấm đầu? (chỉ 11 hóa đơn thay đổi: 9 tốt hơn, 2 xấu
 hơn). Có dùng tập test để chọn cấu hình không? (không; mọi lựa chọn trên train / validation; test chấm hai lần, lần hai theo
