@@ -194,6 +194,54 @@ class ExtractItemsTest(unittest.TestCase):
         res = extract_items(words, boxes)
         self.assertEqual([(i["name"], i["amount"]) for i in res["items"]], [("CP Bắp giò heo không xương 300g", 51500)])
 
+    def test_cong_in_a_name_and_unit_only_quantity_lines(self):
+        # a photographed receipt: "công nghiệp" is not "Tổng cộng", and "1 bao" / "10 quả" are not names
+        words, boxes = lay(["STT TÊN HÀNG SL ĐG THÀNH TIỀN", "Gạo ST25 5kg", "bao 175 .000 175 .000",
+                            "Trứng gà công nghiệp", "10 quả 32 .000 32 .000", "Rau muống", "bố 12 .000 12 .000",
+                            "TỔNG TIỀN HÀNG 219 .000"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]],
+                         [("Gạo ST25 5kg", 175000), ("Trứng gà công nghiệp", 32000), ("Rau muống", 12000)])
+        self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
+
+    def test_total_line_with_the_t_lost_by_ocr(self):
+        # train ...014dspwj: "Tổng cộng" read as "ổng cộng"
+        words, boxes = lay(["Tên hàng SL ĐVT Đơn giá Thành tiền", "hạt điều kim thanh 500g NT", "GOI 130, 000 130, 000",
+                            "ổng cộng: : 130, 000", "tiền khách trả: VND 130, 000"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]], [("hạt điều kim thanh 500g", 130000)])
+        self.assertEqual(res["summary_amounts"], [130000])
+
+    def test_coop_vat_lines_and_trailing_weight(self):
+        # train ...013qlemc / ...013phbcu (Co.op): "barcode name", then "VAT05% price amount", then the weight;
+        # "Quay nau chin" (roasted) is a name, not the "Quầy" (counter) of the top block
+        words, boxes = lay(["Quay: 02 Ngày: 23/09/2019", "Nhan vien: A So HD: 09343",
+                            "00000000002950156 Bong cai trang Mien Bac K", "VATO5+ 58,500. 00 40,599.00", "0. .694 KG",
+                            "020001 134354428 Quay nau chin- -CFood990", "VATIOX 1 10 ,000 .00 10,000.00",
+                            "Tong so tien thanh toan: 50,599.00"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["quantity"], i["unit_price"], i["amount"], i["line_ok"]) for i in res["items"]],
+                         [("Bong cai trang Mien Bac K", 0.694, 58500, 40599, True),
+                          ("Quay nau chin- -CFood990", 1, 10000, 10000, True)])
+        self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
+
+    def test_cha_unit_line_and_sizes_are_not_quantities(self):
+        # train ...013cgpey (Minimart ANAN): "CHA" is the unit column ("chai"), not a name; "80g" is not 80 items
+        words, boxes = lay(["Tên hàng SL ĐVT Đơn giá Thành tiền", "8935039510 10034 giấm gạo lên men ajinomoto",
+                            "CHA 14 ,000 14 ,000", "Mi cung đình 80g", "30 700 61 400", "Tổng cộng: 75,400"])
+        items = extract_items(words, boxes)["items"]
+        self.assertEqual([(i["name"], i["quantity"]) for i in items],
+                         [("giấm gạo lên men ajinomoto", 1), ("Mi cung đình 80g", 2)])
+
+    def test_total_phrase_written_into_an_item_line_does_not_end_the_table(self):
+        # train ...014sgzjh: OCR wrote "TỔNG TIỀN PHẢI T.TOÁN" into an item line it could not read
+        words, boxes = lay(["Tên hàng SL ĐVT Đơn giá Thành tiền", "8934673100113 sữa chua vinamilk NT",
+                            "1 HOP 30,000 30,000", "TỔNG TIỀN PHẢI T.TOÁN 89346731001 13 sữa pha sắn yoko vnm hộp NO",
+                            "1 HOP 52,000 52,000", "Tổng cộng: 82 ,000"])
+        res = extract_items(words, boxes)
+        self.assertEqual([i["amount"] for i in res["items"]], [30000, 52000])
+        self.assertEqual(res["summary_amounts"], [82000])
+
     def test_discount_line_is_subtracted(self):
         words, boxes = lay(["Tên hàng SL Thành tiền", "Trà túi lọc Lipton", "38 .000 38 .000", "KM -3 .300", "Tổng cộng 34 .700"])
         res = extract_items(words, boxes)

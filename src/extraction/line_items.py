@@ -23,8 +23,12 @@ _AMOUNT = re.compile(
     r"(?<![\d])(\d{1,3}(?:" + _GROUP_SEP + r"\d{3})+|\d{1,3}\s\d00(?!\d))(?:" + _SEP + r"0{2}(?!\d))?")
 _DECIMAL_TAIL = re.compile(_SEP + r"0{2}$")
 _BARCODE = re.compile(r"\b\d{6,14}\b")
-_SMALL_INT = re.compile(r"(?<![\d.,])(\d{1,3})(?![\d.,])")
+# a quantity stands alone: digits glued to letters are a size or a code in the name ("80g", "10ml", "Reeval3M", "ga1")
+_SMALL_INT = re.compile(r"(?<![\d.,\w])(\d{1,3})(?![\d.,\w])")
 _NUMBER_TOKEN = re.compile(r"[\d.,]+")
+_LONG_CODE = re.compile(r"\d{8,}")
+_ITEM_MARKS = ("gia ban", "gia dang ky", "ten hang", "mat hang", "goi", "hop", "cha", "cai", "tui", "nt", "dvt")
+_VAT_TOKEN = re.compile(r"\bVAT\s?[0-9IOoSsl]{1,2}[%+XxZzKk72]?(?=\s|$)")
 _DECIMAL_QTY = re.compile(r"(?<![\d.,])(\d{1,2})\s?[.,]\s?(\d{1,3})(?!\d)")
 _PER_KG = re.compile(r"/\s*kg\b", re.IGNORECASE)
 _WEIGHT = re.compile(r"(\d{1,3})\s?[.,](?:\s?[.,])?\s?(\d{1,3})\s*kg\b", re.IGNORECASE)
@@ -36,7 +40,10 @@ _SLOPE_GAIN = 1.10                   # a slope must stack the words 10 % better 
 
 _HEADER_WORDS = ("ten hang", "ten mon", "mat hang", "hang hoa", "sl", "so luong", "don gia", "thanh tien", "t tien",
                  "dvt", "gia", "tt")
-_END_WORDS = ("tong", "cong", "thanh toan", "phai tra", "phai t toan")
+# "cộng" alone is not a total word: "Trứng gà công nghiệp" loses its accents to "cong". Only its total phrases count,
+# also with the "T" that OCR drops ("ổng cộng"), and a line that starts with it ("Cộng tiền hàng").
+_END_WORDS = ("tong", "thanh toan", "phai tra", "phai t toan", "ong cong", "cong tien", "ong so")
+_END_START = ("cong ",)
 _TOP_WORDS = ("hoa don", "ngay", "gio", "thu ngan", "quay", "so hd", "phieu", "nvbh", "ban hang")
 _NAME_STOP = tuple(w for w in _TOP_WORDS if w != "gio")     # "giò heo" (pork) loses its accent and reads "gio"
 _STRONG_HEADER = ("thanh tien", "don gia", "ten hang", "mat hang", "so luong")
@@ -46,6 +53,10 @@ _NOT_A_NAME = ("ten mon", "ten hang", "mat hang", "thanh tien", "so luong", "don
 _MAX_UNCHECKED = 2_000_000          # an amount above this whose line fails quantity * price is a misread number
 _UNITS = {"goi", "hop", "lo", "ch", "nt", "kg", "chai", "cai", "thung", "lon", "tui", "kien", "cap", "bich", "g", "vnd",
           "d", "vat", "x"}
+# units that are a whole "name" only on a quantity line ("1 bao 175.000 175.000" under "Gạo ST25 5kg"); not stripped
+# from the end of a real name, where they are words ("Thịt bò", "Nước ép quả")
+_QTY_UNITS = _UNITS | {"cha", "bao", "qua", "bo", "chiec", "cuon", "lit", "l", "ml", "vi", "hu", "doi", "cay", "trai", "mieng",
+                       "bat", "dia", "ly", "coc", "phan", "suat"}
 
 
 def plain(text: str) -> str:
@@ -53,6 +64,20 @@ def plain(text: str) -> str:
     t = unicodedata.normalize("NFD", text.lower().replace("đ", "d").replace("Đ", "d"))
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", t)).strip()
+
+
+def _looks_like_item(plain_text: str) -> bool:
+    """Item or header tokens: a barcode, "Giá bán" / "Giá đăng ký", a unit column word, "Tên hàng"."""
+    return bool(_LONG_CODE.search(plain_text)) or _has(plain_text, _ITEM_MARKS)
+
+
+def _is_end(plain_text: str) -> bool:
+    """A "total" line: "Tổng tiền", "Thanh toán", "Phải trả", or a line that starts with "Cộng".
+
+    The fine-tuned OCR also writes "Tổng thanh toán" / "TỔNG TIỀN PHẢI T.TOÁN" into item lines it cannot read
+    ("TỔNG TIỀN PHẢI T.TOÁN 8934673100113 sữa pha sắn"); a line that also carries item tokens is not a total line."""
+    total = _has(plain_text, _END_WORDS) or plain_text.startswith(_END_START) or plain_text == "cong"
+    return total and not _looks_like_item(plain_text)
 
 
 def _has(plain_text: str, words: Sequence[str]) -> bool:
@@ -173,6 +198,8 @@ def _name_of(line: str, amounts: Sequence[Tuple[int, int, int, bool]]) -> str:
     while toks and junk(toks[-1]):
         toks.pop()
     name = " ".join(toks).strip(" .,:;-")
+    if toks and all(plain(t) in _QTY_UNITS or re.fullmatch(r"[\d.,]+", t) for t in toks):
+        return ""                                  # only "1 bao" / "10 quả": the name is on the line above
     return name if sum(c.isalpha() for c in name) >= 3 else ""
 
 
@@ -250,7 +277,7 @@ def _header_index(lines: Sequence[str], lines_plain: Sequence[str]) -> Optional[
     (OCR often garbles the other words: "S1. Đơn giú Thành tiền"). A "total" line is never the header
     ("Tổng số lượng hàng")."""
     for i, p in enumerate(lines_plain):
-        if _has(p, _END_WORDS):
+        if _is_end(p):
             continue
         if sum(1 for w in _HEADER_WORDS if f" {w} " in f" {p} ") >= 2:
             return i
@@ -261,7 +288,7 @@ def _header_index(lines: Sequence[str], lines_plain: Sequence[str]) -> Optional[
 
 def _end_index(lines_plain: Sequence[str], start: int) -> Optional[int]:
     for i in range(start, len(lines_plain)):
-        if _has(lines_plain[i], _END_WORDS):
+        if _is_end(lines_plain[i]):
             return i
     return None
 
@@ -285,7 +312,12 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     if end is None:                       # no later total line: keep the first one (a slip without an item table)
         start, end = first
     if header is None and end is not None:
+        # the top block (date, "Quầy", "Số HĐ") ends before the first amount that follows it; a top word after that
+        # amount is in a name ("Quay nau chin": quay = roasted). Amounts above the block (a phone number) do not count.
         top = [i for i in range(start, end) if _has(lp[i], _TOP_WORDS)]
+        if top:
+            first_amount = next((j for j in range(top[0] + 1, end) if parse_amounts(lines[j])), end)
+            top = [i for i in top if i < first_amount]
         start = (max(top) + 1) if top else start
     stop = end if end is not None else len(lines)
 
@@ -295,6 +327,15 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     for i in range(start, stop):
         line, p = lines[i], lp[i]
         if any(p.startswith(s) for s in _SKIP_START):
+            continue
+        if _VAT_TOKEN.search(line):       # Co.op: "VAT05% 58,500.00 40,599.00" under "barcode name": the tax code is
+            line = _VAT_TOKEN.sub(" ", line)  # neither the name nor a quantity
+            p = plain(line)
+        if pending_kg is None and items and not items[-1].get("discount") and _WEIGHT_ONLY.fullmatch(line):
+            weight, last = _weight(line), items[-1]  # Co.op: the weight "0.694 KG" comes after the price line
+            if weight and last["unit_price"] and abs(weight * last["unit_price"] - last["amount"]) <= max(
+                    2.0, 0.005 * last["amount"]):
+                last.update(quantity=weight, line_ok=True)
             continue
         kg = _per_kg(line)
         if kg is not None:                # "Rau muống 21 000/KG X 0, 464 KG": the amount is on the next line
@@ -310,7 +351,8 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
             continue
         amounts = parse_amounts(line)
         if not amounts:
-            if sum(c.isalpha() for c in line) >= 3 and not _has(p, _NAME_STOP):
+            # a top-block line is "Quầy: 02", "Ngày: ..." (with a colon); "Quay nau chin" without one is a name
+            if sum(c.isalpha() for c in line) >= 3 and not (_has(p, _NAME_STOP) and ":" in line):
                 pending = _name_of(line, []) or pending
             continue
         # a decimal quantity is tried first: "0.146 155,000 22,630" also passes as 155 x 146 = 22,630, because a weight
@@ -344,7 +386,7 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     summary: List[int] = []
     if end is not None:
         for j in range(end, min(len(lines), end + 8)):
-            if _has(lp[j], _END_WORDS):
+            if _is_end(lp[j]):
                 summary += [a[0] for a in parse_amounts(lines[j])]
     _repair_by_total(items, summary)
     return {"items": items, "summary_amounts": summary, "header_found": header is not None,
