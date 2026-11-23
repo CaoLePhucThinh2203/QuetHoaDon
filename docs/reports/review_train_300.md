@@ -44,4 +44,22 @@ Khoảng **một nửa (48 %)** hóa đơn "sai" thực ra không có lỗi đ�
 4. **Từ khóa "Tổng…" lẫn trong dòng món** (OCR ghép dòng) làm bảng kết thúc sớm (khoảng 12 hóa đơn).
 5. Dòng "Giá đăng ký / Giá bán", bố cục không tiêu đề hoặc tiêu đề tiếng Anh, dòng KM / trả hàng (ít hơn).
 
-Việc tiếp: sửa các mẫu 1–4 theo thứ tự, mỗi mẫu đo trên train (sửa / hỏng) rồi chấm validation một lần.
+## Đã sửa (bản luật 4, 23/11/2026)
+
+Mỗi mẫu viết và đo trên **train**, validation chấm một lần khi đã chốt; test không chấm lại.
+
+| Mẫu | Sửa | Đo |
+| --- | --- | --- |
+| 1. Co.op "VAT05%" | Bỏ mã thuế khỏi dòng; dòng cân nặng **sau** dòng giá gắn vào món vừa đọc khi cân nặng × đơn giá = thành tiền; khối đầu hóa đơn (Quầy, Ngày, Số HĐ) chỉ tính tới số tiền đầu tiên sau nó, nên "Quay nau chin" là tên hàng | Tên "VAT…" trên train 112 → 3 |
+| 2. Từ đơn vị làm tên | "CHA" (chai ở cột ĐVT) vào danh sách đơn vị của dòng số lượng; chữ đầu hóa đơn chỉ chặn tên khi dòng có dấu ":" | Tên chỉ là đơn vị trên train 82 → 0 |
+| 3. Số trong tên làm số lượng | Số lượng phải đứng riêng: chữ số dính chữ cái ("80g", "10ml", "Reeval3M") không phải số lượng | Dòng không khớp phép tính có số lượng ≥ 20: 61 → 49 |
+| 4. "Tổng" lẫn trong dòng món | Dòng có từ tổng nhưng cũng có mã vạch ≥ 8 chữ số, "Giá bán", chữ ĐVT hay "Tên hàng" không phải dòng tổng | Bảng không còn bị cắt ở các dòng OCR chèn "Tổng thanh toán" |
+
+| Tổng các món = tổng chuẩn | Trước | Sau |
+| --- | --- | --- |
+| Train (781) | 572 (73,2 %) | **579 (74,1 %)**: sửa 7, hỏng 0 |
+| Validation (94) | 70 (74,5 %) | **71 (75,5 %)**: sửa 1, hỏng 0 |
+
+Tên rác (VAT, chỉ đơn vị) trên validation: 29 → 1. `verified` đúng: train 97,2 %, validation 98,5 %. Tổng tiền với
+`--total-from-items` trên validation không đổi (80 / 98). Phần lớn hóa đơn Co.op còn sai là do OCR đọc sai số, luật không
+sửa được. File nguồn: `eval_items_v5/` (ngoài Git).
