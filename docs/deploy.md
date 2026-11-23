@@ -85,5 +85,6 @@ Mở trang Space: ô **health** phải ra `"status": "ready"` (bấm **Kiểm tr
 - **Space ngủ** khi lâu không dùng: khi thức dậy phải cài lại detectron2 (vài phút nếu đã lưu bản biên dịch nhờ token Write, 10–20 phút nếu chưa) rồi nạp model. Trang web tự kiểm tra
   `/api/health` mỗi 10 giây và báo "máy chủ đang khởi động".
 - **Đổi code:** push lên nhánh `thinh-dev` (hiện Space và notebook 08, 09, 10 đều lấy code từ nhánh này, nên chưa xóa được; khi chuyển sang `main` thì đổi `BRANCH` ở các chỗ đó) rồi vào Space → **Settings → Restart Space** (`app.py` clone lại code mỗi lần khởi động).
+- **Nhánh phải còn tồn tại:** `deploy/space/app.py` mặc định clone `thinh-dev`. Nếu nhánh bị xóa thì Space không dựng lại được; khi đó đặt biến `BRANCH=main` trong Settings của Space và chọn nhánh `main` trên Vercel.
 - **Một ảnh mỗi lần:** API xử lý tuần tự; nhiều người dùng cùng lúc sẽ phải chờ.
 - **Riêng tư:** không lưu ảnh; vẫn nên giữ Space private và `API_KEY`, vì ảnh hóa đơn có thông tin cá nhân.
