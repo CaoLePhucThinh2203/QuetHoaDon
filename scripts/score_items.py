@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.evaluation.app_metrics import wilson_interval  # noqa: E402
 from src.evaluation.metrics import normalize_amount  # noqa: E402
 from src.extraction.line_items import check_items, extract_items  # noqa: E402
+from src.recognition.quality import readability  # noqa: E402
 from src.training.data import load_jsonl  # noqa: E402
 
 
@@ -32,14 +33,20 @@ def gold_amounts(gt: dict) -> set:
     return {a for a in (normalize_amount(t) for t in gt.get("TOTAL_COST", [])) if a and a < 100_000_000}
 
 
-def score_records(records: list, n_examples: int = 15, seed: int = 0) -> dict:
+def score_records(records: list, n_examples: int = 15, seed: int = 0, quality_check: bool = False) -> dict:
+    """With ``quality_check`` a receipt flagged unreadable shows no item (as in the app): not found, not verified."""
     rows = []
+    flagged = 0
     for rec in records:
         gold = gold_amounts(rec.get("gt", {}))
         if not gold:
             continue
         res = extract_items(rec["words"], rec["boxes"])
         chk = check_items(res["items"], res["summary_amounts"])
+        if quality_check and readability(rec["words"])["unreadable"]:
+            flagged += 1
+            res = dict(res, items=[])
+            chk = dict(chk, status="unreadable", sum=0, sum_without_discounts=0, lines_ok=0)
         match = bool(res["items"]) and (chk["sum"] in gold or chk["sum_without_discounts"] in gold)
         rows.append({"img_id": rec["img_id"], "gold": sorted(gold), "n_items": len(res["items"]), "sum": chk["sum"],
                      "header": res["header_found"], "end": res["end_found"], "lines_ok": chk["lines_ok"],
@@ -55,6 +62,8 @@ def score_records(records: list, n_examples: int = 15, seed: int = 0) -> dict:
     examples = random.sample(found, min(n_examples, len(found)))
     return {
         "receipts_with_gold_total": n,
+        "quality_check": quality_check,
+        "flagged_unreadable": flagged,
         "found_items": stat(len(found), n),
         "sum_matches_gold_total": stat(sum(r["match"] for r in rows), n),
         "receipts_with_2plus_items": stat(sum(1 for r in rows if r["n_items"] >= 2), n),
@@ -76,13 +85,15 @@ def main() -> None:
     ap.add_argument("--token-dir", required=True)
     ap.add_argument("--split", choices=["train", "validation", "test"], default="validation")
     ap.add_argument("--allow-test", action="store_true")
+    ap.add_argument("--quality-check", action="store_true",
+                    help="receipts flagged unreadable (src/recognition/quality.py) show no item, as in the app")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     if args.split == "test" and not args.allow_test:
         sys.exit("The test split is scored once, after the rules are frozen. Re-run with --allow-test.")
 
     records = load_jsonl(str(Path(args.token_dir) / f"{args.split}.jsonl"))
-    report = score_records(records)
+    report = score_records(records, quality_check=args.quality_check)
     report["split"] = args.split
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
@@ -100,6 +111,8 @@ def main() -> None:
         ci = f"[{100 * s['ci95'][0]:.1f}, {100 * s['ci95'][1]:.1f}]" if s["ci95"] else "-"
         print(f"| {label} | {s['count']} / {s['of']} | {100 * s['rate']:.1f} % | {ci} |" if s["rate"] is not None
               else f"| {label} | 0 / 0 | - | - |")
+    if args.quality_check:
+        print("flagged unreadable (no items shown):", report["flagged_unreadable"])
     print("written:", args.out)
 
 

@@ -9,10 +9,12 @@ Read a photo of a Vietnamese receipt and extract structured information (seller,
 
 > **Status (Week 5).** The full pipeline runs: preprocessing → CRAFT → VietOCR → LayoutXLM → field extraction. The
 > Week-5 work raised reading accuracy: VietOCR was fine-tuned on MC-OCR line crops, LayoutXLM (M1b v3) was retrained on
-> that OCR, and date / time and SELLER / ADDRESS clean-up rules were added. On the test split (scored once) the share of
-> receipts with all four fields read exactly right went from 9.6 % to 18.4 %, see [Results](#results-week-5-final-configuration-test-split).
-> A rule-based reader for item lines (name, quantity, unit price, amount) was added on top, scored with the annotated
-> total. Plan and status: [`docs/reports/`](docs/reports/).
+> that OCR, and date / time and SELLER / ADDRESS clean-up rules were added. On the test split the share of receipts with
+> all four fields read exactly right went from 9.6 % (Week 4) to 18.4 % (frozen configuration, scored 17/11) and 21.1 %
+> (product configuration, scored 22/11), see [Results](#results-week-5-final-configuration-test-split). A rule-based
+> reader for item lines (name, quantity, unit price, amount) reads the right total in 74.2 % of test receipts, scored with
+> the annotated total. A web demo (`deploy/`, `notebooks/08_web_demo_kaggle.ipynb`) runs the product configuration.
+> Plan and status: [`docs/reports/`](docs/reports/).
 
 ## 1. Source code
 
@@ -53,7 +55,11 @@ QuetHoaDon/
 │   ├── 04_week5_demo_latency_rq1_kaggle.ipynb  # end-to-end demo, latency, preprocessing ablation (Kaggle T4)
 │   ├── 05_phase0_baseline_kaggle.ipynb  # accuracy baseline: strict app metrics, saved probabilities, error catalogue
 │   ├── 06_phase1_ocr_kaggle.ipynb  # VietOCR fine-tuning, OCR rerun, M1b v3, scoring with date / time rules
-│   └── 07_final_evaluation_kaggle.ipynb  # frozen final configuration: every reported number re-checked, demo photo -> JSON
+│   ├── 07_final_evaluation_kaggle.ipynb  # frozen configuration (17/11): every reported number re-checked, demo photo -> JSON
+│   ├── 08_web_demo_kaggle.ipynb  # web demo (Gradio, public link) of the product configuration
+│   ├── 09_line_merge_kaggle.ipynb  # experiment: OCR of merged line segments (negative result)
+│   ├── 10_digit_finetune_kaggle.ipynb  # experiment: VietOCR fine-tuning for digits (negative result)
+│   └── 11_final_test_product_kaggle.ipynb  # second test run, product configuration, two self-checking gates
 ├── scripts/
 │   ├── prepare_dataset.py        # manifests + invoice-level split
 │   ├── build_token_dataset.py    # OCR JSON + annotations -> BIO token dataset
@@ -81,7 +87,7 @@ QuetHoaDon/
 │   ├── score_items.py            # item lines scored with the annotated total
 │   └── compare_strict.py         # paired comparison of two decoded runs (McNemar, bootstrap)
 ├── src/                          # source code (table above)
-├── tests/                        # 270+ unit tests, no GPU needed
+├── tests/                        # 330+ unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
 └── requirements-dev.txt          # light deps for the unit tests / CI
 ```
@@ -127,7 +133,7 @@ Details: [`docs/dataset.md`](docs/dataset.md#preprocessing-steps).
 
 ## Results (Week 5, final configuration, test split)
 
-Test split, 116 receipts, scored **once** after the configuration was frozen. Strict reading accuracy: the predicted text
+Two configurations were scored on the test split (116 receipts): the **frozen configuration** on 17/11/2026 and the **product configuration** (the one the web demo runs) on 22/11/2026. The test split was therefore used **twice**; the rules of the second run were committed before it ([`docs/reports/final_test_protocol.md`](docs/reports/final_test_protocol.md)). First the frozen configuration, scored once after it was frozen. Strict reading accuracy: the predicted text
 must equal the annotated text after normalisation (what a user of an upload-a-receipt app would see). "Week 4" is M1b v2
 with the Week-4 decoding plus the date / time rules; "final" is fine-tuned VietOCR + nested-box filter 0.5 + M1b v3 + date /
 time rules + SELLER / ADDRESS clean-up. Paired comparison over the same receipts (`scripts/compare_strict.py`, exact
@@ -146,6 +152,22 @@ McNemar test and bootstrap over receipts): SELLER +15.0 points [+7.5, +22.4] (p 
 | Lenient macro F1 | 0.664 | 0.780 |
 | Fields wrong because of OCR text | 95 | 52 |
 
+**Product configuration (22/11, same model and OCR).** Adds the item rules of 19/11, `total_from_items` (use the verified item
+sum when the model's total is not printed on a total line) and `quality_check` (answer "unreadable, take another photo" when
+the OCR repeats invented phrases; the 5 flagged test receipts count as not read). Paired against the frozen configuration:
+
+| Exactly right | Frozen (17/11) | Product (22/11) | Difference [95 %] | McNemar p |
+| --- | --- | --- | --- | --- |
+| SELLER, ADDRESS, date, time | unchanged | unchanged | 0 | 1.0 |
+| Total | 71 / 98 (72.4 %) | **80 / 98 (81.6 %)** | +9.2 [+4.1, +15.3] | **0.0039** |
+| **All four fields** | 21 / 114 (18.4 %) | **24 / 114 (21.1 %)** [14.6, 29.4] | +2.6 [+0.0, +6.1] | 0.25 |
+| Item sum = annotated total | 46 / 97 (47.4 %) | **72 / 97 (74.2 %)** [64.7, 81.9] | | |
+| Of items reported `verified`, right | 42 / 44 (95.5 %) | 69 / 72 (95.8 %) | | |
+
+No correct answer was lost to the "unreadable" flag (no field has a receipt that only the frozen configuration got right).
+The improvements are in the total and the item lines; the other fields did not change. The same two numbers on validation
+(total 81.6 %, items 74.5 %) match the test (81.6 %, 74.2 %): no sign of a validation-to-test gap for these two. Report: [`docs/reports/week5_final_report.md`](docs/reports/week5_final_report.md).
+
 VietOCR fine-tuning (validation, region crops): CER 13.03 % -> 6.49 %. The SELLER / ADDRESS clean-up rules were written
 after reading validation errors, so the validation numbers are optimistic; the test numbers above are not.
 
@@ -154,9 +176,10 @@ stage 58.9 ms on GPU (p95 86.0 ms) and 913.2 ms on CPU. `scripts/verify_extracto
 predictions of the end-to-end path on all 115 validation receipts (0 differences, PASS).
 
 **Item lines (name, quantity, unit price, amount).** MC-OCR has no item labels, so the reader is rule based and scored by
-whether the item amounts add up to the annotated total. Test, 97 receipts with an annotated total: at least one item read
-in 80.4 %; item sum equals the annotated total in 46 / 97 (47.4 % [37.8, 57.3]); when the reader reports a receipt as
-`verified` (sum equals the total printed on the receipt) 42 of 44 are right (95.5 %). Item **names** cannot be scored
+whether the item amounts add up to the annotated total. Test, 97 receipts with an annotated total, frozen rules (17/11): at
+least one item read in 80.4 %; item sum equals the annotated total in 46 / 97 (47.4 % [37.8, 57.3]); when the reader reports
+a receipt as `verified` (sum equals the total printed on the receipt) 42 of 44 are right (95.5 %). With the rules of 19/11
+(product configuration) the same test gives 92.8 %, 72 / 97 (74.2 %) and 69 of 72 (95.8 %). Item **names** cannot be scored
 without labels. Details and limits: [`docs/reports/items_plan.md`](docs/reports/items_plan.md).
 
 ## Results (Week 4, one seed)
@@ -184,6 +207,9 @@ near-duplicate in train (macro F1 without them: M1b 0.642). How to train and sco
 | `notebooks/06_phase1_ocr_kaggle.ipynb` | VietOCR fine-tuning, OCR rerun, nested-box filter, M1b v3 training and scoring | Kaggle GPU |
 | `notebooks/07_final_evaluation_kaggle.ipynb` | **final configuration**: re-computes every reported number with KHỚP / LỆCH checks, latency, demo photo → JSON | Kaggle GPU |
 | `notebooks/08_web_demo_kaggle.ipynb` | **web demo**: upload a receipt photo in the browser, get the fields, item lines and coloured word boxes (public Gradio link) | Kaggle GPU |
+| `notebooks/09_line_merge_kaggle.ipynb`, `10_digit_finetune_kaggle.ipynb` | experiments, both negative: OCR of merged line segments; VietOCR fine-tuning for digits (`docs/reports/progress.md`) | Kaggle GPU |
+| `notebooks/11_final_test_product_kaggle.ipynb` | **second test run** of the product configuration; two gates (frozen numbers reproduce, offline scoring = app output) must pass before it scores | Kaggle GPU |
+| `deploy/` | web deployment: API on a Hugging Face Space and a page on Vercel (`docs/deploy.md`) | CPU |
 | `scripts/run_pipeline.py` | the same pipeline on one image from the terminal | any |
 | `scripts/extract_receipt.py` | receipt photo → seller, address, date and time, total, item lines (`--items --compact`) | GPU |
 | `scripts/demo_app.py` | the same, as a Gradio web page (`--share` for a public link) | GPU |
@@ -267,8 +293,10 @@ may need small changes, especially transformers 5.x for the LayoutXLM processor.
 
 Order: run the OCR notebook, then `prepare_dataset.py` and `build_token_dataset.py` ([section 3](#3-data-preprocessing-steps)),
 then the commands in [`docs/training.md`](docs/training.md) (section "Final configuration" for Week 5).
-`notebooks/07_final_evaluation_kaggle.ipynb` re-computes every reported number from the saved models and prints KHỚP when
-it matches. Model weights (M1b v3 checkpoint 1.4 GB, fine-tuned VietOCR 152 MB) are not stored in the repository; the
+`notebooks/07_final_evaluation_kaggle.ipynb` re-computes the numbers of the **frozen configuration** from the saved models and
+prints KHỚP when it matches; it is pinned to commit `413599d` because the item rules on `main` changed after it (run on `main`,
+its item cell would report LỆCH). `notebooks/11_final_test_product_kaggle.ipynb` runs on `main` and re-computes both
+configurations. Model weights (M1b v3 checkpoint 1.4 GB, fine-tuned VietOCR 152 MB) are not stored in the repository; the
 team keeps them in a Kaggle dataset and on Google Drive, or they can be retrained with the commands in `docs/training.md`
 (VietOCR about 40 minutes, OCR of the dataset about 45 minutes, M1b about 30 minutes on a T4).
 
