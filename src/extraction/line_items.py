@@ -36,7 +36,10 @@ _SLOPE_GAIN = 1.10                   # a slope must stack the words 10 % better 
 
 _HEADER_WORDS = ("ten hang", "ten mon", "mat hang", "hang hoa", "sl", "so luong", "don gia", "thanh tien", "t tien",
                  "dvt", "gia", "tt")
-_END_WORDS = ("tong", "cong", "thanh toan", "phai tra", "phai t toan")
+# "cộng" alone is not a total word: "Trứng gà công nghiệp" loses its accents to "cong". Only its total phrases count,
+# also with the "T" that OCR drops ("ổng cộng"), and a line that starts with it ("Cộng tiền hàng").
+_END_WORDS = ("tong", "thanh toan", "phai tra", "phai t toan", "ong cong", "cong tien", "ong so")
+_END_START = ("cong ",)
 _TOP_WORDS = ("hoa don", "ngay", "gio", "thu ngan", "quay", "so hd", "phieu", "nvbh", "ban hang")
 _NAME_STOP = tuple(w for w in _TOP_WORDS if w != "gio")     # "giò heo" (pork) loses its accent and reads "gio"
 _STRONG_HEADER = ("thanh tien", "don gia", "ten hang", "mat hang", "so luong")
@@ -46,6 +49,10 @@ _NOT_A_NAME = ("ten mon", "ten hang", "mat hang", "thanh tien", "so luong", "don
 _MAX_UNCHECKED = 2_000_000          # an amount above this whose line fails quantity * price is a misread number
 _UNITS = {"goi", "hop", "lo", "ch", "nt", "kg", "chai", "cai", "thung", "lon", "tui", "kien", "cap", "bich", "g", "vnd",
           "d", "vat", "x"}
+# units that are a whole "name" only on a quantity line ("1 bao 175.000 175.000" under "Gạo ST25 5kg"); not stripped
+# from the end of a real name, where they are words ("Thịt bò", "Nước ép quả")
+_QTY_UNITS = _UNITS | {"bao", "qua", "bo", "chiec", "cuon", "lit", "l", "ml", "vi", "hu", "doi", "cay", "trai", "mieng",
+                       "bat", "dia", "ly", "coc", "phan", "suat"}
 
 
 def plain(text: str) -> str:
@@ -53,6 +60,11 @@ def plain(text: str) -> str:
     t = unicodedata.normalize("NFD", text.lower().replace("đ", "d").replace("Đ", "d"))
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", t)).strip()
+
+
+def _is_end(plain_text: str) -> bool:
+    """A "total" line: "Tổng tiền", "Thanh toán", "Phải trả", or a line that starts with "Cộng"."""
+    return _has(plain_text, _END_WORDS) or plain_text.startswith(_END_START) or plain_text == "cong"
 
 
 def _has(plain_text: str, words: Sequence[str]) -> bool:
@@ -173,6 +185,8 @@ def _name_of(line: str, amounts: Sequence[Tuple[int, int, int, bool]]) -> str:
     while toks and junk(toks[-1]):
         toks.pop()
     name = " ".join(toks).strip(" .,:;-")
+    if toks and all(plain(t) in _QTY_UNITS or re.fullmatch(r"[\d.,]+", t) for t in toks):
+        return ""                                  # only "1 bao" / "10 quả": the name is on the line above
     return name if sum(c.isalpha() for c in name) >= 3 else ""
 
 
@@ -250,7 +264,7 @@ def _header_index(lines: Sequence[str], lines_plain: Sequence[str]) -> Optional[
     (OCR often garbles the other words: "S1. Đơn giú Thành tiền"). A "total" line is never the header
     ("Tổng số lượng hàng")."""
     for i, p in enumerate(lines_plain):
-        if _has(p, _END_WORDS):
+        if _is_end(p):
             continue
         if sum(1 for w in _HEADER_WORDS if f" {w} " in f" {p} ") >= 2:
             return i
@@ -261,7 +275,7 @@ def _header_index(lines: Sequence[str], lines_plain: Sequence[str]) -> Optional[
 
 def _end_index(lines_plain: Sequence[str], start: int) -> Optional[int]:
     for i in range(start, len(lines_plain)):
-        if _has(lines_plain[i], _END_WORDS):
+        if _is_end(lines_plain[i]):
             return i
     return None
 
@@ -344,7 +358,7 @@ def extract_items(words: Sequence[str], boxes: Sequence[Sequence[float]]) -> Dic
     summary: List[int] = []
     if end is not None:
         for j in range(end, min(len(lines), end + 8)):
-            if _has(lp[j], _END_WORDS):
+            if _is_end(lp[j]):
                 summary += [a[0] for a in parse_amounts(lines[j])]
     _repair_by_total(items, summary)
     return {"items": items, "summary_amounts": summary, "header_found": header is not None,

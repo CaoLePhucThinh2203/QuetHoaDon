@@ -194,6 +194,24 @@ class ExtractItemsTest(unittest.TestCase):
         res = extract_items(words, boxes)
         self.assertEqual([(i["name"], i["amount"]) for i in res["items"]], [("CP Bắp giò heo không xương 300g", 51500)])
 
+    def test_cong_in_a_name_and_unit_only_quantity_lines(self):
+        # a photographed receipt: "công nghiệp" is not "Tổng cộng", and "1 bao" / "10 quả" are not names
+        words, boxes = lay(["STT TÊN HÀNG SL ĐG THÀNH TIỀN", "Gạo ST25 5kg", "bao 175 .000 175 .000",
+                            "Trứng gà công nghiệp", "10 quả 32 .000 32 .000", "Rau muống", "bố 12 .000 12 .000",
+                            "TỔNG TIỀN HÀNG 219 .000"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]],
+                         [("Gạo ST25 5kg", 175000), ("Trứng gà công nghiệp", 32000), ("Rau muống", 12000)])
+        self.assertEqual(check_items(res["items"], res["summary_amounts"])["status"], "verified")
+
+    def test_total_line_with_the_t_lost_by_ocr(self):
+        # train ...014dspwj: "Tổng cộng" read as "ổng cộng"
+        words, boxes = lay(["Tên hàng SL ĐVT Đơn giá Thành tiền", "hạt điều kim thanh 500g NT", "GOI 130, 000 130, 000",
+                            "ổng cộng: : 130, 000", "tiền khách trả: VND 130, 000"])
+        res = extract_items(words, boxes)
+        self.assertEqual([(i["name"], i["amount"]) for i in res["items"]], [("hạt điều kim thanh 500g", 130000)])
+        self.assertEqual(res["summary_amounts"], [130000])
+
     def test_discount_line_is_subtracted(self):
         words, boxes = lay(["Tên hàng SL Thành tiền", "Trà túi lọc Lipton", "38 .000 38 .000", "KM -3 .300", "Tổng cộng 34 .700"])
         res = extract_items(words, boxes)
