@@ -5,6 +5,15 @@
 Read a photo of a Vietnamese receipt and extract structured information (seller, address, timestamp, total) with a
 **CRAFT → VietOCR → LayoutXLM** pipeline.
 
+**Web demo:** https://quethoadon-web.vercel.app/ (upload a receipt photo; the model runs on a Hugging Face Space, so the
+first request after a long pause can take a few minutes while it starts).
+
+| Course | Introduction to Artificial Intelligence (SEB44021) |
+| --- | --- |
+| Lecturer | Trần Thế Vũ |
+| Semester | Semester 1, academic year 2026–2027 |
+| Team | Group 1 (see [Team](#team)) |
+
 ![Pipeline architecture](assets/pipeline_architecture.png)
 
 > **Status (Week 5).** The full pipeline runs: preprocessing → CRAFT → VietOCR → LayoutXLM → field extraction. The
@@ -42,10 +51,15 @@ QuetHoaDon/
 │   ├── preprocessing_before_after.jpg
 │   └── samples/sample_receipt.jpg  # synthetic receipt for a quick test
 ├── configs/                      # config.yaml (paths, data policy), dataset.yaml, model.yaml
+├── deploy/
+│   ├── space/                    # Gradio API on a Hugging Face Space (ZeroGPU)
+│   ├── api/                      # FastAPI + Docker version of the same API
+│   └── web/                      # web page on Vercel and its serverless proxy to the Space
 ├── docs/
 │   ├── architecture.md           # pipeline, data contracts, model architecture, limits
 │   ├── dataset.md                # MC-OCR facts, preprocessing steps, split, data-use policy
 │   ├── training.md               # how to train, score and compare the models (commands, settings)
+│   ├── deploy.md                 # how to deploy the web demo (Hugging Face Space + Vercel)
 │   ├── archive/                  # documents of the earlier unsupervised direction (history only)
 │   └── reports/                  # project plan, status, weekly reports
 ├── notebooks/
@@ -87,7 +101,7 @@ QuetHoaDon/
 │   ├── score_items.py            # item lines scored with the annotated total
 │   └── compare_strict.py         # paired comparison of two decoded runs (McNemar, bootstrap)
 ├── src/                          # source code (table above)
-├── tests/                        # 330+ unit tests, no GPU needed
+├── tests/                        # 342 unit tests, no GPU needed
 ├── requirements.txt              # runtime (pipeline)
 └── requirements-dev.txt          # light deps for the unit tests / CI
 ```
@@ -98,7 +112,10 @@ QuetHoaDon/
   LayoutXLM architecture, field-extraction design, limitations.
 - [`docs/dataset.md`](docs/dataset.md) - MC-OCR 2021 annotations, preprocessing steps, split figures, known
   issues, data-use policy (train / validation / test).
-- [`docs/reports/`](docs/reports/) - project plan with the rubric check, latest status, weekly reports.
+- [`docs/training.md`](docs/training.md) - commands and settings to train, score and compare the models.
+- [`docs/deploy.md`](docs/deploy.md) - deployment of the web demo (Hugging Face Space for the model, Vercel for the page).
+- [`docs/reports/`](docs/reports/) - project plan with the rubric check, weekly reports, final report
+  ([`week5_final_report.md`](docs/reports/week5_final_report.md)).
 
 ## 3. Data preprocessing steps
 
@@ -166,7 +183,9 @@ the OCR repeats invented phrases; the 5 flagged test receipts count as not read)
 
 No correct answer was lost to the "unreadable" flag (no field has a receipt that only the frozen configuration got right).
 The improvements are in the total and the item lines; the other fields did not change. The same two numbers on validation
-(total 81.6 %, items 74.5 %) match the test (81.6 %, 74.2 %): no sign of a validation-to-test gap for these two. Report: [`docs/reports/week5_final_report.md`](docs/reports/week5_final_report.md).
+(total 81.6 %, items 74.5 %) match the test (81.6 %, 74.2 %): no sign of a validation-to-test gap for these two. The item
+rules were refined once more on 23/11 (rule version 4, written on train): validation items 74.5 % -> 75.5 %; the test was
+not scored again, so the test numbers above are those of version 3. Report: [`docs/reports/week5_final_report.md`](docs/reports/week5_final_report.md).
 
 VietOCR fine-tuning (validation, region crops): CER 13.03 % -> 6.49 %. The SELLER / ADDRESS clean-up rules were written
 after reading validation errors, so the validation numbers are optimistic; the test numbers above are not.
@@ -226,9 +245,29 @@ Preprocessing and detection hyper-parameters are in `configs/model.yaml`.
 
 ## 5. Instructions for running the project
 
+### 5.0 Installation
+
+Python 3.11 or newer. For the unit tests only, `pip install -r requirements-dev.txt` is enough (section 5.3). For the
+pipeline (a GPU is recommended):
+
+```bash
+git clone https://github.com/CaoLePhucThinh2203/QuetHoaDon.git
+cd QuetHoaDon
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install craft-text-detector --no-deps
+pip install vietocr --no-deps
+pip install gdown einops prefetch_generator albumentations lmdb imgaug
+pip install ninja
+pip install "git+https://github.com/facebookresearch/detectron2.git" --no-build-isolation   # LayoutXLM, about 10 min
+```
+
+`craft-text-detector` and `vietocr` pin old torch / numpy versions, hence `--no-deps`. The notebooks run these same
+installs on Kaggle / Colab.
+
 ### 5.1 One image (CLI)
 
-Install as in the [Quickstart](#quickstart-3-commands), then:
+After the installation above:
 
 ```bash
 python scripts/run_pipeline.py                                    # bundled sample, prints JSON
