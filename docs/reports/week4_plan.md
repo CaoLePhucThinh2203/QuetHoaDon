@@ -85,9 +85,9 @@ Sau khi chốt: cập nhật `configs/config.yaml` (`data_policy`), `README.md`,
 hóa đơn dài > 512 token; lỗi OCR lan sang nhãn; chỉ ~922 hóa đơn train; giới hạn GPU/thời gian của Colab;
 cài detectron2 mất vài phút mỗi phiên.
 
-## 4. Phân công theo nhóm việc (điền tên người phụ trách)
+## 4. Phân công theo nhóm việc
 
-### WS-A — Dữ liệu & nhãn · Người phụ trách: ______
+### WS-A — Dữ liệu & nhãn · Người phụ trách: Thịnh, Nam, Lộc
 
 1. Chạy `scripts/prepare_dataset.py` trên Colab, lưu `dataset_summary.json` với **đủ 4 nhãn**.
 2. Đối chiếu **1044 ảnh vs 1153 hóa đơn**; liệt kê ảnh thiếu; sửa bộ chọn ảnh.
@@ -98,7 +98,7 @@ cài detectron2 mất vài phút mỗi phiên.
 
 **Xong khi:** có 3 file split, báo cáo tỉ lệ vùng nhãn khớp được OCR, kiểm tra leak sạch.
 
-### WS-B — Baseline & đánh giá · Người phụ trách: ______
+### WS-B — Baseline & đánh giá · Người phụ trách: Thịnh, Nam
 
 1. Chạy smoke test (5 ảnh) rồi chạy toàn bộ validation + test; xác nhận hai bản sửa (`inhomogeneous shape`, `drop_nested`).
 2. Viết `scripts/evaluate_pipeline.py`: recall detection, CER/WER, thời gian/ảnh bằng `src/evaluation`.
@@ -107,7 +107,7 @@ cài detectron2 mất vài phút mỗi phiên.
 
 **Xong khi:** `outputs/metrics/baseline_{val,test}.json` và bảng số liệu B0 cho 4 trường.
 
-### WS-C — Huấn luyện M1 · Người phụ trách: ______
+### WS-C — Huấn luyện M1 · Người phụ trách: Nam, Thịnh
 
 1. `src/training/`: dataset, `LayoutXLMForTokenClassification`, vòng huấn luyện, đánh giá `seqeval`.
 2. `notebooks/03_train_layoutxlm.ipynb`: chạy trên Colab, lưu checkpoint + learning curve.
@@ -116,7 +116,7 @@ cài detectron2 mất vài phút mỗi phiên.
 
 **Xong khi:** có checkpoint, `outputs/train/run_*.json` (siêu tham số, loss theo epoch) và `outputs/metrics/m1_{val,test}.json`.
 
-### WS-D — Phân tích & báo cáo · Người phụ trách: ______
+### WS-D — Phân tích & báo cáo · Người phụ trách: Nam, Lộc
 
 1. Cập nhật `docs/architecture.md` (kiến trúc M1) và viết `docs/training.md`.
 2. Viết báo cáo đánh giá Tuần 4 (PDF, ngoài repo): bảng B0 vs M1 + trả lời RQ1/RQ3.
